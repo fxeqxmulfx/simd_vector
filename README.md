@@ -12,22 +12,28 @@ SIMD vector types for x86-64 in pure stable Rust.
 - `Sum`, `Index`, `From`/`Into` array, `Clone`, `Copy`, `Debug`, `PartialEq`
 - Transcendentals: `sin`, `cos`, `exp` — ported from [SLEEF](https://github.com/shibatch/sleef)
 
-## Transcendental accuracy
+## Accuracy
 
-`sin` and `cos` use SLEEF's `xsinf_u1` / `xcosf_u1` algorithms (ULP < 1 variants). `exp` uses SLEEF's `xexpf`.
+| Function | ULP error | Notes |
+|----------|-----------|-------|
+| `+`, `-`, `*`, `/` | 0.0 | IEEE 754 correctly rounded |
+| `neg` | 0.0 | exact bit flip |
+| `abs` | 0.0 | exact bit mask |
+| `floor` | 0.0 | exact (IEEE 754 `roundps`) |
+| `splat` | 0.0 | exact broadcast |
+| `dot` | ≤ 0.5 | FMA-based, single rounding at the end |
+| `mul_add` | ≤ 0.5 | single FMA instruction |
+| `sqrt` | 0.0 | IEEE 754 correctly rounded (`sqrtps`) |
+| `sin` | ≤ 1.0 | SLEEF `xsinf_u1` — Cody-Waite + Payne-Hanek + double-float polynomial |
+| `cos` | ≤ 1.0 | SLEEF `xcosf_u1` — Cody-Waite + Payne-Hanek + double-float polynomial |
+| `exp` | ≤ 1.0 | SLEEF `xexpf` — ln(2) range reduction + degree-6 polynomial + ldexp |
 
-| Function | Algorithm | ULP error | Range |
-|----------|-----------|-----------|-------|
-| `sin` | Cody-Waite + Payne-Hanek + double-float polynomial | ≤ 1.0 | all finite f32 |
-| `cos` | Cody-Waite + Payne-Hanek + double-float polynomial | ≤ 1.0 | all finite f32 |
-| `exp` | ln(2) range reduction + degree-6 polynomial + ldexp | ≤ 1.0 | all finite f32 |
-
-Key implementation details:
+### Transcendental implementation details
 
 - **Range reduction** for `sin`/`cos`: Cody-Waite (3-constant) for |x| < 125, Payne-Hanek table-based (`rempif`) for larger arguments
 - **Double-float arithmetic**: FMA-based error-free transformations for high precision in the polynomial evaluation
 - **Edge cases**: NaN/Inf propagation, sin(-0) = -0, exp(-inf) = 0, exp(inf) = inf
-- Polynomial coefficients, constants (`PI_A2f`, `PI_B2f`, `PI_C2f`, `L2Uf`, `L2Lf`, etc.), and the 416-entry `Sleef_rempitabsp` table are taken directly from SLEEF
+- Polynomial coefficients, constants, and the 416-entry `Sleef_rempitabsp` table are taken directly from [SLEEF](https://github.com/shibatch/sleef)
 
 ## Required CPU features
 
@@ -36,6 +42,12 @@ SSE4.1, AVX2, FMA3. Enabled globally via `.cargo/config.toml`:
 ```toml
 [build]
 rustflags = ["-C", "target-feature=+sse4.1,+avx2,+fma"]
+```
+
+## Installation
+
+```
+cargo add simd_vector
 ```
 
 ## Usage
@@ -53,7 +65,7 @@ let e = Vec8::splat(1.0).exp(); // [e, e, e, e, e, e, e, e]
 
 ## Tests
 
-189 tests covering all operations, edge cases (NaN, Inf, -0.0, subnormals), and ULP sweep verification over the full range.
+189 tests covering all operations, edge cases (NaN, Inf, -0.0, subnormals), and sampled ULP sweep verification.
 
 ```
 cargo test
