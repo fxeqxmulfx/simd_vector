@@ -57,8 +57,15 @@ impl Vec4 {
     #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
         unsafe {
-            let r = _mm_dp_ps(self.load(), other.load(), 0xF1);
-            _mm_cvtss_f32(r)
+            let a_f64 = _mm256_cvtps_pd(self.load());
+            let b_f64 = _mm256_cvtps_pd(other.load());
+            let prod = _mm256_mul_pd(a_f64, b_f64);
+            let hi = _mm256_extractf128_pd(prod, 1);
+            let lo = _mm256_castpd256_pd128(prod);
+            let sum2 = _mm_add_pd(lo, hi);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
         }
     }
 

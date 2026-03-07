@@ -21,7 +21,7 @@ SIMD vector types for x86-64 in pure stable Rust.
 | `abs` | 0.0 | exact bit mask |
 | `floor` | 0.0 | exact (IEEE 754 `roundps`) |
 | `splat` | 0.0 | exact broadcast |
-| `dot` | ≤ 0.5 | FMA-based, single rounding at the end |
+| `dot` | ≤ 0.5 | f64 intermediate: exact products + tree sum, single rounding on f64→f32 |
 | `mul_add` | ≤ 0.5 | single FMA instruction |
 | `sqrt` | 0.0 | IEEE 754 correctly rounded (`sqrtps`) |
 | `sin` | ≤ 1.0 | SLEEF `xsinf_u1` — Cody-Waite + Payne-Hanek + double-float polynomial |

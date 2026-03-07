@@ -57,17 +57,21 @@ impl Vec8 {
     #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
         unsafe {
-            let prod = _mm256_mul_ps(self.load(), other.load());
-            // Horizontal sum of 8 floats
-            let hi128 = _mm256_extractf128_ps(prod, 1);
-            let lo128 = _mm256_castps256_ps128(prod);
-            let sum128 = _mm_add_ps(lo128, hi128);
-            // Now sum the 4 floats in sum128
-            let shuf = _mm_movehdup_ps(sum128); // [1,1,3,3]
-            let sums = _mm_add_ps(sum128, shuf); // [0+1, -, 2+3, -]
-            let shuf2 = _mm_movehl_ps(sums, sums); // [2+3, -, -, -]
-            let sums2 = _mm_add_ss(sums, shuf2);
-            _mm_cvtss_f32(sums2)
+            let a = self.load();
+            let b = other.load();
+            let a_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(a));
+            let a_hi = _mm256_cvtps_pd(_mm256_extractf128_ps(a, 1));
+            let b_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(b));
+            let b_hi = _mm256_cvtps_pd(_mm256_extractf128_ps(b, 1));
+            let prod_lo = _mm256_mul_pd(a_lo, b_lo);
+            let prod_hi = _mm256_mul_pd(a_hi, b_hi);
+            let sum4 = _mm256_add_pd(prod_lo, prod_hi);
+            let hi = _mm256_extractf128_pd(sum4, 1);
+            let lo = _mm256_castpd256_pd128(sum4);
+            let sum2 = _mm_add_pd(lo, hi);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
         }
     }
 
