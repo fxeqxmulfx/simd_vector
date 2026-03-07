@@ -4,16 +4,19 @@ use std::ops::{Add, Div, Index, Mul, Neg, Sub};
 
 use crate::*;
 
+/// An 8-lane SIMD vector of `f32` values, backed by AVX2 256-bit registers.
 #[derive(Clone, Copy)]
 #[repr(C, align(32))]
 pub struct Vec8(pub [f32; 8]);
 
+/// Formats the vector as `Vec8([a, b, c, d, e, f, g, h])` for debug output.
 impl std::fmt::Debug for Vec8 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Vec8").field(&self.0).finish()
     }
 }
 
+/// Compares two vectors for exact element-wise equality.
 impl PartialEq for Vec8 {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
@@ -24,11 +27,13 @@ impl Vec8 {
     pub const ZERO: Self = Vec8([0.0; 8]);
     pub const ONE: Self = Vec8([1.0; 8]);
 
+    /// Loads the array contents into an AVX register.
     #[inline(always)]
     fn load(&self) -> __m256 {
         unsafe { _mm256_load_ps(self.0.as_ptr()) }
     }
 
+    /// Stores an AVX register into a new `Vec8`.
     #[inline(always)]
     fn store(v: __m256) -> Self {
         let mut r = Vec8([0.0; 8]);
@@ -36,16 +41,19 @@ impl Vec8 {
         r
     }
 
+    /// Creates a vector with all lanes set to `val`.
     #[inline(always)]
     pub fn splat(val: f32) -> Self {
         Self::store(unsafe { _mm256_set1_ps(val) })
     }
 
+    /// Computes fused multiply-add: `self * a + b` per lane.
     #[inline(always)]
     pub fn mul_add(self, a: Self, b: Self) -> Self {
         unsafe { Self::store(_mm256_fmadd_ps(self.load(), a.load(), b.load())) }
     }
 
+    /// Computes the dot product of two vectors, returning a scalar.
     #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
         unsafe {
@@ -63,6 +71,7 @@ impl Vec8 {
         }
     }
 
+    /// Returns the absolute value of each lane.
     #[inline(always)]
     pub fn abs(self) -> Self {
         unsafe {
@@ -71,11 +80,13 @@ impl Vec8 {
         }
     }
 
+    /// Returns the square root of each lane.
     #[inline(always)]
     pub fn sqrt(self) -> Self {
         unsafe { Self::store(_mm256_sqrt_ps(self.load())) }
     }
 
+    /// Returns the floor (round toward negative infinity) of each lane.
     #[inline(always)]
     pub fn floor(self) -> Self {
         unsafe {
@@ -86,25 +97,30 @@ impl Vec8 {
         }
     }
 
+    /// Computes the sine of each lane (radians). SLEEF u1 precision (~1 ULP).
     pub fn sin(self) -> Self {
         unsafe { Self::store(sinf_u1_avx2(self.load())) }
     }
 
+    /// Computes the cosine of each lane (radians). SLEEF u1 precision (~1 ULP).
     pub fn cos(self) -> Self {
         unsafe { Self::store(cosf_u1_avx2(self.load())) }
     }
 
+    /// Computes e^x for each lane. SLEEF precision.
     pub fn exp(self) -> Self {
         unsafe { Self::store(expf_avx2(self.load())) }
     }
 }
 
+/// Sums an iterator of `Vec8` values element-wise, starting from zero.
 impl Sum for Vec8 {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, |a, b| a + b)
     }
 }
 
+/// Indexes into the vector to retrieve a single `f32` lane.
 impl Index<usize> for Vec8 {
     type Output = f32;
     fn index(&self, index: usize) -> &Self::Output {
@@ -112,6 +128,7 @@ impl Index<usize> for Vec8 {
     }
 }
 
+/// Negates each lane of the vector.
 impl Neg for Vec8 {
     type Output = Vec8;
     fn neg(self) -> Self::Output {
@@ -122,6 +139,7 @@ impl Neg for Vec8 {
     }
 }
 
+/// Element-wise addition of two vectors.
 impl Add<Vec8> for Vec8 {
     type Output = Vec8;
     fn add(self, rhs: Vec8) -> Self::Output {
@@ -129,6 +147,7 @@ impl Add<Vec8> for Vec8 {
     }
 }
 
+/// Element-wise subtraction of two vectors.
 impl Sub<Vec8> for Vec8 {
     type Output = Vec8;
     fn sub(self, rhs: Vec8) -> Self::Output {
@@ -136,6 +155,7 @@ impl Sub<Vec8> for Vec8 {
     }
 }
 
+/// Element-wise multiplication of two vectors.
 impl Mul<Vec8> for Vec8 {
     type Output = Vec8;
     fn mul(self, rhs: Vec8) -> Self::Output {
@@ -143,6 +163,7 @@ impl Mul<Vec8> for Vec8 {
     }
 }
 
+/// Element-wise division of two vectors.
 impl Div<Vec8> for Vec8 {
     type Output = Vec8;
     fn div(self, rhs: Vec8) -> Self::Output {
@@ -150,6 +171,7 @@ impl Div<Vec8> for Vec8 {
     }
 }
 
+/// Adds a scalar to each lane of the vector.
 impl Add<f32> for Vec8 {
     type Output = Vec8;
     fn add(self, rhs: f32) -> Self::Output {
@@ -157,6 +179,7 @@ impl Add<f32> for Vec8 {
     }
 }
 
+/// Subtracts a scalar from each lane of the vector.
 impl Sub<f32> for Vec8 {
     type Output = Vec8;
     fn sub(self, rhs: f32) -> Self::Output {
@@ -164,6 +187,7 @@ impl Sub<f32> for Vec8 {
     }
 }
 
+/// Multiplies each lane of the vector by a scalar.
 impl Mul<f32> for Vec8 {
     type Output = Vec8;
     fn mul(self, rhs: f32) -> Self::Output {
@@ -171,6 +195,7 @@ impl Mul<f32> for Vec8 {
     }
 }
 
+/// Divides each lane of the vector by a scalar.
 impl Div<f32> for Vec8 {
     type Output = Vec8;
     fn div(self, rhs: f32) -> Self::Output {
@@ -178,6 +203,7 @@ impl Div<f32> for Vec8 {
     }
 }
 
+/// Adds a scalar to each lane of the vector (`f32 + Vec8`).
 impl Add<Vec8> for f32 {
     type Output = Vec8;
     fn add(self, rhs: Vec8) -> Self::Output {
@@ -185,6 +211,7 @@ impl Add<Vec8> for f32 {
     }
 }
 
+/// Subtracts each lane of the vector from a scalar (`f32 - Vec8`).
 impl Sub<Vec8> for f32 {
     type Output = Vec8;
     fn sub(self, rhs: Vec8) -> Self::Output {
@@ -192,6 +219,7 @@ impl Sub<Vec8> for f32 {
     }
 }
 
+/// Multiplies a scalar by each lane of the vector (`f32 * Vec8`).
 impl Mul<Vec8> for f32 {
     type Output = Vec8;
     fn mul(self, rhs: Vec8) -> Self::Output {
@@ -199,6 +227,7 @@ impl Mul<Vec8> for f32 {
     }
 }
 
+/// Divides a scalar by each lane of the vector (`f32 / Vec8`).
 impl Div<Vec8> for f32 {
     type Output = Vec8;
     fn div(self, rhs: Vec8) -> Self::Output {
@@ -206,28 +235,28 @@ impl Div<Vec8> for f32 {
     }
 }
 
+/// Creates a `Vec8` from a `[f32; 8]` array.
 impl From<[f32; 8]> for Vec8 {
     fn from(arr: [f32; 8]) -> Self {
         Vec8(arr)
     }
 }
 
+/// Extracts the inner `[f32; 8]` array from a `Vec8`.
 impl From<Vec8> for [f32; 8] {
     fn from(v: Vec8) -> Self {
         v.0
     }
 }
 
-// ---------------------------------------------------------------------------
-// SLEEF transcendental implementations (AVX2 + FMA3)
-// ---------------------------------------------------------------------------
-
+/// Double-float pair (hi, lo) across 8 AVX lanes, for extended precision arithmetic.
 #[derive(Clone, Copy)]
 struct F2x8 {
     hi: __m256,
     lo: __m256,
 }
 
+/// Normalizes a double-float pair so that `hi` carries the leading bits (AVX).
 #[inline(always)]
 unsafe fn df_normalize_avx(a: F2x8) -> F2x8 {
     let s = _mm256_add_ps(a.hi, a.lo);
@@ -237,6 +266,7 @@ unsafe fn df_normalize_avx(a: F2x8) -> F2x8 {
     }
 }
 
+/// Error-free addition of two `__m256` floats into a double-float pair (AVX).
 #[inline(always)]
 unsafe fn df_add2_f_f_avx(x: __m256, y: __m256) -> F2x8 {
     let s = _mm256_add_ps(x, y);
@@ -250,6 +280,7 @@ unsafe fn df_add2_f_f_avx(x: __m256, y: __m256) -> F2x8 {
     }
 }
 
+/// Adds a single `__m256` to a double-float pair (fast, AVX).
 #[inline(always)]
 unsafe fn df_add_f2_f_avx(x: F2x8, y: __m256) -> F2x8 {
     let s = _mm256_add_ps(x.hi, y);
@@ -259,6 +290,7 @@ unsafe fn df_add_f2_f_avx(x: F2x8, y: __m256) -> F2x8 {
     }
 }
 
+/// Error-free addition of a double-float pair and a single `__m256` (AVX).
 #[inline(always)]
 unsafe fn df_add2_f2_f_avx(x: F2x8, y: __m256) -> F2x8 {
     let s = _mm256_add_ps(x.hi, y);
@@ -273,6 +305,7 @@ unsafe fn df_add2_f2_f_avx(x: F2x8, y: __m256) -> F2x8 {
     }
 }
 
+/// Error-free addition of two double-float pairs (AVX).
 #[inline(always)]
 unsafe fn df_add2_f2_f2_avx(x: F2x8, y: F2x8) -> F2x8 {
     let s = _mm256_add_ps(x.hi, y.hi);
@@ -287,6 +320,7 @@ unsafe fn df_add2_f2_f2_avx(x: F2x8, y: F2x8) -> F2x8 {
     }
 }
 
+/// Adds a single `__m256` to a double-float pair, scalar first (AVX).
 #[inline(always)]
 unsafe fn df_add_f_f2_avx(x: __m256, y: F2x8) -> F2x8 {
     let s = _mm256_add_ps(x, y.hi);
@@ -296,6 +330,7 @@ unsafe fn df_add_f_f2_avx(x: __m256, y: F2x8) -> F2x8 {
     }
 }
 
+/// FMA-based multiplication of two double-float pairs (AVX).
 #[inline(always)]
 unsafe fn df_mul_f2_f2_avx(x: F2x8, y: F2x8) -> F2x8 {
     let s = _mm256_mul_ps(x.hi, y.hi);
@@ -307,6 +342,7 @@ unsafe fn df_mul_f2_f2_avx(x: F2x8, y: F2x8) -> F2x8 {
     F2x8 { hi: s, lo: t }
 }
 
+/// Squares a double-float pair using FMA (AVX).
 #[inline(always)]
 unsafe fn df_squ_f2_avx(x: F2x8) -> F2x8 {
     let s = _mm256_mul_ps(x.hi, x.hi);
@@ -318,6 +354,7 @@ unsafe fn df_squ_f2_avx(x: F2x8) -> F2x8 {
     F2x8 { hi: s, lo: t }
 }
 
+/// Evaluates the product of two double-float pairs as a single `__m256` (AVX).
 #[inline(always)]
 unsafe fn df_to_f_avx(x: F2x8, y: F2x8) -> __m256 {
     _mm256_fmadd_ps(
@@ -327,6 +364,7 @@ unsafe fn df_to_f_avx(x: F2x8, y: F2x8) -> __m256 {
     )
 }
 
+/// Constructs 2^q as a float for each lane (AVX).
 #[inline(always)]
 unsafe fn vpow2i_avx(q: __m256i) -> __m256 {
     _mm256_castsi256_ps(_mm256_slli_epi32(
@@ -335,6 +373,7 @@ unsafe fn vpow2i_avx(q: __m256i) -> __m256 {
     ))
 }
 
+/// Computes `d * 2^e` per lane, splitting the exponent to avoid overflow (AVX).
 #[inline(always)]
 unsafe fn vldexp2_avx(d: __m256, e: __m256i) -> __m256 {
     let e1 = _mm256_srai_epi32(e, 1);
@@ -342,7 +381,7 @@ unsafe fn vldexp2_avx(d: __m256, e: __m256i) -> __m256 {
     _mm256_mul_ps(_mm256_mul_ps(d, vpow2i_avx(e1)), vpow2i_avx(e2))
 }
 
-// Scalar-per-lane rempif for AVX2
+/// Payne-Hanek pi reduction for 8 AVX lanes (scalar fallback).
 #[inline(always)]
 unsafe fn rempif_avx(d: __m256) -> (F2x8, __m256i) {
     #[repr(C, align(32))]
@@ -370,17 +409,19 @@ unsafe fn rempif_avx(d: __m256) -> (F2x8, __m256i) {
     )
 }
 
+/// Applies the sign of `y` to `x` per lane (AVX).
 #[inline(always)]
 unsafe fn vmulsign_avx(x: __m256, y: __m256) -> __m256 {
     _mm256_xor_ps(x, _mm256_and_ps(y, _mm256_set1_ps(-0.0)))
 }
 
+/// Returns a mask that is true where `d` is negative zero (AVX).
 #[inline(always)]
 unsafe fn visnegzero_avx(d: __m256) -> __m256 {
     _mm256_cmp_ps(d, _mm256_set1_ps(-0.0), _CMP_EQ_OQ)
 }
 
-// SLEEF xsinf_u1 for AVX2+FMA3
+/// SLEEF `xsinf_u1` sine implementation for AVX2+FMA3.
 unsafe fn sinf_u1_avx2(d: __m256) -> __m256 {
     let neg_zero = _mm256_set1_ps(-0.0);
     let abs_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFF_FFFF));
@@ -494,7 +535,7 @@ unsafe fn sinf_u1_avx2(d: __m256) -> __m256 {
     result
 }
 
-// SLEEF xcosf_u1 for AVX2+FMA3
+/// SLEEF `xcosf_u1` cosine implementation for AVX2+FMA3.
 unsafe fn cosf_u1_avx2(d: __m256) -> __m256 {
     let neg_zero = _mm256_set1_ps(-0.0);
     let abs_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFF_FFFF));
@@ -610,7 +651,7 @@ unsafe fn cosf_u1_avx2(d: __m256) -> __m256 {
     result
 }
 
-// SLEEF xexpf for AVX2+FMA3
+/// SLEEF `xexpf` exponential implementation for AVX2+FMA3.
 unsafe fn expf_avx2(d: __m256) -> __m256 {
     let q = _mm256_cvtps_epi32(_mm256_mul_ps(d, _mm256_set1_ps(R_LN2F)));
     let qf = _mm256_cvtepi32_ps(q);

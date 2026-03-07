@@ -4,16 +4,19 @@ use std::ops::{Add, Div, Index, Mul, Neg, Sub};
 
 use crate::*;
 
+/// A 4-lane SIMD vector of `f32` values, backed by SSE 128-bit registers.
 #[derive(Clone, Copy)]
 #[repr(C, align(16))]
 pub struct Vec4(pub [f32; 4]);
 
+/// Formats the vector as `Vec4([a, b, c, d])` for debug output.
 impl std::fmt::Debug for Vec4 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Vec4").field(&self.0).finish()
     }
 }
 
+/// Compares two vectors for exact element-wise equality.
 impl PartialEq for Vec4 {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
@@ -24,11 +27,13 @@ impl Vec4 {
     pub const ZERO: Self = Vec4([0.0; 4]);
     pub const ONE: Self = Vec4([1.0; 4]);
 
+    /// Loads the array contents into an SSE register.
     #[inline(always)]
     fn load(&self) -> __m128 {
         unsafe { _mm_load_ps(self.0.as_ptr()) }
     }
 
+    /// Stores an SSE register into a new `Vec4`.
     #[inline(always)]
     fn store(v: __m128) -> Self {
         let mut r = Vec4([0.0; 4]);
@@ -36,16 +41,19 @@ impl Vec4 {
         r
     }
 
+    /// Creates a vector with all lanes set to `val`.
     #[inline(always)]
     pub fn splat(val: f32) -> Self {
         Self::store(unsafe { _mm_set1_ps(val) })
     }
 
+    /// Computes fused multiply-add: `self * a + b` per lane.
     #[inline(always)]
     pub fn mul_add(self, a: Self, b: Self) -> Self {
         unsafe { Self::store(_mm_fmadd_ps(self.load(), a.load(), b.load())) }
     }
 
+    /// Computes the dot product of two vectors, returning a scalar.
     #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
         unsafe {
@@ -54,6 +62,7 @@ impl Vec4 {
         }
     }
 
+    /// Returns the absolute value of each lane.
     #[inline(always)]
     pub fn abs(self) -> Self {
         unsafe {
@@ -62,11 +71,13 @@ impl Vec4 {
         }
     }
 
+    /// Returns the square root of each lane.
     #[inline(always)]
     pub fn sqrt(self) -> Self {
         unsafe { Self::store(_mm_sqrt_ps(self.load())) }
     }
 
+    /// Returns the floor (round toward negative infinity) of each lane.
     #[inline(always)]
     pub fn floor(self) -> Self {
         unsafe {
@@ -77,28 +88,30 @@ impl Vec4 {
         }
     }
 
-    // SLEEF xsinf_u1 ported to SSE4.1 + FMA3
+    /// Computes the sine of each lane (radians). SLEEF u1 precision (~1 ULP).
     pub fn sin(self) -> Self {
         unsafe { Self::store(sinf_u1_sse(self.load())) }
     }
 
-    // SLEEF xcosf_u1 ported to SSE4.1 + FMA3
+    /// Computes the cosine of each lane (radians). SLEEF u1 precision (~1 ULP).
     pub fn cos(self) -> Self {
         unsafe { Self::store(cosf_u1_sse(self.load())) }
     }
 
-    // SLEEF xexpf ported to SSE4.1 + FMA3
+    /// Computes e^x for each lane. SLEEF precision.
     pub fn exp(self) -> Self {
         unsafe { Self::store(expf_sse(self.load())) }
     }
 }
 
+/// Sums an iterator of `Vec4` values element-wise, starting from zero.
 impl Sum for Vec4 {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, |a, b| a + b)
     }
 }
 
+/// Indexes into the vector to retrieve a single `f32` lane.
 impl Index<usize> for Vec4 {
     type Output = f32;
     fn index(&self, index: usize) -> &Self::Output {
@@ -106,6 +119,7 @@ impl Index<usize> for Vec4 {
     }
 }
 
+/// Negates each lane of the vector.
 impl Neg for Vec4 {
     type Output = Vec4;
     fn neg(self) -> Self::Output {
@@ -116,6 +130,7 @@ impl Neg for Vec4 {
     }
 }
 
+/// Element-wise addition of two vectors.
 impl Add<Vec4> for Vec4 {
     type Output = Vec4;
     fn add(self, rhs: Vec4) -> Self::Output {
@@ -123,6 +138,7 @@ impl Add<Vec4> for Vec4 {
     }
 }
 
+/// Element-wise subtraction of two vectors.
 impl Sub<Vec4> for Vec4 {
     type Output = Vec4;
     fn sub(self, rhs: Vec4) -> Self::Output {
@@ -130,6 +146,7 @@ impl Sub<Vec4> for Vec4 {
     }
 }
 
+/// Element-wise multiplication of two vectors.
 impl Mul<Vec4> for Vec4 {
     type Output = Vec4;
     fn mul(self, rhs: Vec4) -> Self::Output {
@@ -137,6 +154,7 @@ impl Mul<Vec4> for Vec4 {
     }
 }
 
+/// Element-wise division of two vectors.
 impl Div<Vec4> for Vec4 {
     type Output = Vec4;
     fn div(self, rhs: Vec4) -> Self::Output {
@@ -144,6 +162,7 @@ impl Div<Vec4> for Vec4 {
     }
 }
 
+/// Adds a scalar to each lane of the vector.
 impl Add<f32> for Vec4 {
     type Output = Vec4;
     fn add(self, rhs: f32) -> Self::Output {
@@ -151,6 +170,7 @@ impl Add<f32> for Vec4 {
     }
 }
 
+/// Subtracts a scalar from each lane of the vector.
 impl Sub<f32> for Vec4 {
     type Output = Vec4;
     fn sub(self, rhs: f32) -> Self::Output {
@@ -158,6 +178,7 @@ impl Sub<f32> for Vec4 {
     }
 }
 
+/// Multiplies each lane of the vector by a scalar.
 impl Mul<f32> for Vec4 {
     type Output = Vec4;
     fn mul(self, rhs: f32) -> Self::Output {
@@ -165,6 +186,7 @@ impl Mul<f32> for Vec4 {
     }
 }
 
+/// Divides each lane of the vector by a scalar.
 impl Div<f32> for Vec4 {
     type Output = Vec4;
     fn div(self, rhs: f32) -> Self::Output {
@@ -172,6 +194,7 @@ impl Div<f32> for Vec4 {
     }
 }
 
+/// Adds a scalar to each lane of the vector (`f32 + Vec4`).
 impl Add<Vec4> for f32 {
     type Output = Vec4;
     fn add(self, rhs: Vec4) -> Self::Output {
@@ -179,6 +202,7 @@ impl Add<Vec4> for f32 {
     }
 }
 
+/// Subtracts each lane of the vector from a scalar (`f32 - Vec4`).
 impl Sub<Vec4> for f32 {
     type Output = Vec4;
     fn sub(self, rhs: Vec4) -> Self::Output {
@@ -186,6 +210,7 @@ impl Sub<Vec4> for f32 {
     }
 }
 
+/// Multiplies a scalar by each lane of the vector (`f32 * Vec4`).
 impl Mul<Vec4> for f32 {
     type Output = Vec4;
     fn mul(self, rhs: Vec4) -> Self::Output {
@@ -193,6 +218,7 @@ impl Mul<Vec4> for f32 {
     }
 }
 
+/// Divides a scalar by each lane of the vector (`f32 / Vec4`).
 impl Div<Vec4> for f32 {
     type Output = Vec4;
     fn div(self, rhs: Vec4) -> Self::Output {
@@ -200,12 +226,14 @@ impl Div<Vec4> for f32 {
     }
 }
 
+/// Creates a `Vec4` from a `[f32; 4]` array.
 impl From<[f32; 4]> for Vec4 {
     fn from(arr: [f32; 4]) -> Self {
         Vec4(arr)
     }
 }
 
+/// Extracts the inner `[f32; 4]` array from a `Vec4`.
 impl From<Vec4> for [f32; 4] {
     fn from(v: Vec4) -> Self {
         v.0
@@ -216,13 +244,14 @@ impl From<Vec4> for [f32; 4] {
 // SLEEF transcendental implementations (SSE4.1 + FMA3)
 // ---------------------------------------------------------------------------
 
-// Double-float pair represented as two __m128 registers
+/// Double-float pair (hi, lo) across 4 SSE lanes, for extended precision arithmetic.
 #[derive(Clone, Copy)]
 struct F2x4 {
     hi: __m128,
     lo: __m128,
 }
 
+/// Normalizes a double-float pair so that `hi` carries the leading bits (SSE).
 #[inline(always)]
 unsafe fn df_normalize_sse(a: F2x4) -> F2x4 {
     let s = _mm_add_ps(a.hi, a.lo);
@@ -232,6 +261,7 @@ unsafe fn df_normalize_sse(a: F2x4) -> F2x4 {
     }
 }
 
+/// Error-free addition of two `__m128` floats into a double-float pair (SSE).
 #[inline(always)]
 unsafe fn df_add2_f_f_sse(x: __m128, y: __m128) -> F2x4 {
     let s = _mm_add_ps(x, y);
@@ -242,6 +272,7 @@ unsafe fn df_add2_f_f_sse(x: __m128, y: __m128) -> F2x4 {
     }
 }
 
+/// Adds a single `__m128` to a double-float pair (fast, SSE).
 #[inline(always)]
 unsafe fn df_add_f2_f_sse(x: F2x4, y: __m128) -> F2x4 {
     let s = _mm_add_ps(x.hi, y);
@@ -251,6 +282,7 @@ unsafe fn df_add_f2_f_sse(x: F2x4, y: __m128) -> F2x4 {
     }
 }
 
+/// Error-free addition of a double-float pair and a single `__m128` (SSE).
 #[inline(always)]
 unsafe fn df_add2_f2_f_sse(x: F2x4, y: __m128) -> F2x4 {
     let s = _mm_add_ps(x.hi, y);
@@ -262,6 +294,7 @@ unsafe fn df_add2_f2_f_sse(x: F2x4, y: __m128) -> F2x4 {
     }
 }
 
+/// Error-free addition of two double-float pairs (SSE).
 #[inline(always)]
 unsafe fn df_add2_f2_f2_sse(x: F2x4, y: F2x4) -> F2x4 {
     let s = _mm_add_ps(x.hi, y.hi);
@@ -276,6 +309,7 @@ unsafe fn df_add2_f2_f2_sse(x: F2x4, y: F2x4) -> F2x4 {
     }
 }
 
+/// Adds a single `__m128` to a double-float pair, scalar first (SSE).
 #[inline(always)]
 unsafe fn df_add_f_f2_sse(x: __m128, y: F2x4) -> F2x4 {
     let s = _mm_add_ps(x, y.hi);
@@ -285,7 +319,7 @@ unsafe fn df_add_f_f2_sse(x: __m128, y: F2x4) -> F2x4 {
     }
 }
 
-// FMA-based double-float multiply
+/// FMA-based multiplication of two double-float pairs (SSE).
 #[inline(always)]
 unsafe fn df_mul_f2_f2_sse(x: F2x4, y: F2x4) -> F2x4 {
     let s = _mm_mul_ps(x.hi, y.hi);
@@ -297,6 +331,7 @@ unsafe fn df_mul_f2_f2_sse(x: F2x4, y: F2x4) -> F2x4 {
     F2x4 { hi: s, lo: t }
 }
 
+/// Squares a double-float pair using FMA (SSE).
 #[inline(always)]
 unsafe fn df_squ_f2_sse(x: F2x4) -> F2x4 {
     let s = _mm_mul_ps(x.hi, x.hi);
@@ -308,7 +343,7 @@ unsafe fn df_squ_f2_sse(x: F2x4) -> F2x4 {
     F2x4 { hi: s, lo: t }
 }
 
-// Returns hi+lo as a single float (FMA version)
+/// Evaluates the product of two double-float pairs as a single `__m128` (SSE).
 #[inline(always)]
 unsafe fn df_to_f_sse(x: F2x4, y: F2x4) -> __m128 {
     _mm_fmadd_ps(
@@ -322,13 +357,13 @@ unsafe fn df_to_f_sse(x: F2x4, y: F2x4) -> __m128 {
     )
 }
 
-// Helper: construct 2^q as float
+/// Constructs 2^q as a float for each lane (SSE).
 #[inline(always)]
 unsafe fn vpow2i_sse(q: __m128i) -> __m128 {
     _mm_castsi128_ps(_mm_slli_epi32(_mm_add_epi32(q, _mm_set1_epi32(0x7F)), 23))
 }
 
-// ldexp2: d * 2^e, splitting e to avoid overflow
+/// Computes `d * 2^e` per lane, splitting the exponent to avoid overflow (SSE).
 #[inline(always)]
 unsafe fn vldexp2_sse(d: __m128, e: __m128i) -> __m128 {
     let e1 = _mm_srai_epi32(e, 1);
@@ -336,7 +371,7 @@ unsafe fn vldexp2_sse(d: __m128, e: __m128i) -> __m128 {
     _mm_mul_ps(_mm_mul_ps(d, vpow2i_sse(e1)), vpow2i_sse(e2))
 }
 
-// Scalar-per-lane rempif for SSE (no gather in SSE4.1)
+/// Payne-Hanek pi reduction for 4 SSE lanes (scalar fallback, no gather).
 #[inline(always)]
 unsafe fn rempif_sse(d: __m128) -> (F2x4, __m128i) {
     #[repr(C, align(16))]
@@ -364,18 +399,19 @@ unsafe fn rempif_sse(d: __m128) -> (F2x4, __m128i) {
     )
 }
 
-// mulsign: x with sign of y applied
+/// Applies the sign of `y` to `x` per lane (SSE).
 #[inline(always)]
 unsafe fn vmulsign_sse(x: __m128, y: __m128) -> __m128 {
     _mm_xor_ps(x, _mm_and_ps(y, _mm_set1_ps(-0.0)))
 }
 
+/// Returns a mask that is true where `d` is negative zero (SSE).
 #[inline(always)]
 unsafe fn visnegzero_sse(d: __m128) -> __m128 {
     _mm_cmpeq_ps(d, _mm_set1_ps(-0.0))
 }
 
-// SLEEF xsinf_u1 for SSE4.1+FMA3
+/// SLEEF `xsinf_u1` sine implementation for SSE4.1+FMA3.
 unsafe fn sinf_u1_sse(d: __m128) -> __m128 {
     let neg_zero = _mm_set1_ps(-0.0);
     let abs_mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFF_FFFF));
@@ -502,7 +538,7 @@ unsafe fn sinf_u1_sse(d: __m128) -> __m128 {
     result
 }
 
-// SLEEF xcosf_u1 for SSE4.1+FMA3
+/// SLEEF `xcosf_u1` cosine implementation for SSE4.1+FMA3.
 unsafe fn cosf_u1_sse(d: __m128) -> __m128 {
     let neg_zero = _mm_set1_ps(-0.0);
     let abs_mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFF_FFFF));
@@ -621,7 +657,7 @@ unsafe fn cosf_u1_sse(d: __m128) -> __m128 {
     result
 }
 
-// SLEEF xexpf for SSE4.1+FMA3
+/// SLEEF `xexpf` exponential implementation for SSE4.1+FMA3.
 unsafe fn expf_sse(d: __m128) -> __m128 {
     // Range reduction: q = round(d / ln2)
     let q = _mm_cvtps_epi32(_mm_mul_ps(d, _mm_set1_ps(R_LN2F)));

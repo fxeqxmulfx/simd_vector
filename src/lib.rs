@@ -127,8 +127,11 @@ const REMPI_TABSP: [f32; 416] = [
     f32::from_bits(0x00000000), f32::from_bits(0x00000000), f32::from_bits(0x00000000), f32::from_bits(0x00000000),
 ];
 
-// Scalar Payne-Hanek pi reduction for a single f32.
-// Returns (reduced_hi, reduced_lo, quadrant).
+/// Scalar Payne-Hanek pi reduction for a single `f32`.
+///
+/// Returns `(reduced_hi, reduced_lo, quadrant)` where `reduced_hi + reduced_lo`
+/// is `a` reduced modulo pi/2, and `quadrant` encodes which quadrant of the
+/// original angle was occupied.
 fn rempif_scalar(a: f32) -> (f32, f32, i32) {
     // vilogb2k: extract exponent
     let mut ex = ((a.to_bits() >> 23) & 0xFF) as i32 - 0x7F;
@@ -185,13 +188,16 @@ fn rempif_scalar(a: f32) -> (f32, f32, i32) {
     (r_hi, r_lo, q)
 }
 
-// Scalar double-float helpers
+/// Normalizes a double-float pair so that `hi` carries the leading bits.
+///
+/// Returns `(s, err)` where `s = a_hi + a_lo` and `err` captures the rounding error.
 #[inline(always)]
 fn df_normalize(a_hi: f32, a_lo: f32) -> (f32, f32) {
     let s = a_hi + a_lo;
     (s, (a_hi - s) + a_lo)
 }
 
+/// Error-free addition of two double-float pairs: `(a_hi, a_lo) + (b_hi, b_lo)`.
 #[inline(always)]
 fn df_add2_f2_f2(a_hi: f32, a_lo: f32, b_hi: f32, b_lo: f32) -> (f32, f32) {
     let s = a_hi + b_hi;
@@ -200,6 +206,7 @@ fn df_add2_f2_f2(a_hi: f32, a_lo: f32, b_hi: f32, b_lo: f32) -> (f32, f32) {
     (s, t + a_lo + b_lo)
 }
 
+/// Error-free multiplication of two `f32` values using FMA. Returns `(product, error)`.
 #[inline(always)]
 fn df_mul_f_f(a: f32, b: f32) -> (f32, f32) {
     let s = a * b;
@@ -207,6 +214,7 @@ fn df_mul_f_f(a: f32, b: f32) -> (f32, f32) {
     (s, t)
 }
 
+/// Multiplies a double-float pair `(a_hi, a_lo)` by a single `f32`.
 #[inline(always)]
 fn df_mul_f2_f(a_hi: f32, a_lo: f32, b: f32) -> (f32, f32) {
     let s = a_hi * b;
@@ -214,6 +222,7 @@ fn df_mul_f2_f(a_hi: f32, a_lo: f32, b: f32) -> (f32, f32) {
     (s, t)
 }
 
+/// Multiplies two double-float pairs: `(a_hi, a_lo) * (b_hi, b_lo)`.
 #[inline(always)]
 fn df_mul_f2_f2(a_hi: f32, a_lo: f32, b_hi: f32, b_lo: f32) -> (f32, f32) {
     let s = a_hi * b_hi;
