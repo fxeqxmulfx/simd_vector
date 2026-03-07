@@ -450,7 +450,9 @@ fn rempif_scalar(a: f32) -> (f32, f32, i32) {
     ex -= 25;
     let mut a = a;
 
-    // Scale down very large exponents (original exponent > 90)
+    // Scale down very large inputs (original exponent > 90) to prevent
+    // f32 intermediate precision loss: without this, a * table[idx] products
+    // are so large that rempisubf cannot extract quadrant/fractional bits.
     if ex > 90 - 25 {
         // vldexp3: add -64 to exponent field
         a = f32::from_bits((a.to_bits() as i32 + (-64i32 << 23)) as u32);
