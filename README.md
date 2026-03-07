@@ -60,7 +60,7 @@ let b = Vec4([5.0, 6.0, 7.0, 8.0]);
 let c = a + b;              // [6.0, 8.0, 10.0, 12.0]
 let d = a.dot(b);           // 70.0
 let s = a.sin();            // per-lane sin
-let e = Vec8::splat(1.0).exp(); // [e, e, e, e, e, e, e, e]
+let e = Vec8::splat(1.0).exp(); // [2.71828, 2.71828, ...] (8 lanes)
 ```
 
 ## Tests
