@@ -1,6 +1,6 @@
 [package]
 name = "simd_vector"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "SIMD vector types (Vec4, Vec8) for x86-64 in pure stable Rust — SSE4.1, AVX2, FMA3"
 license = "MIT"
@@ -8,5 +8,6 @@ repository = "https://github.com/fxeqxmulfx/simd_vector"
 readme = "README.md"
 keywords = ["simd", "vector", "avx2", "sse", "fma"]
 categories = ["mathematics", "science"]
+exclude = [".cargo/config.toml", ".claude/", ".gitignore"]
 
 [dependencies]
