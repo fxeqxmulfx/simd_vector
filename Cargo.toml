@@ -1,6 +1,6 @@
 [package]
 name = "simd_vector"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "SIMD vector types (Vec4, Vec8) for x86-64 in pure stable Rust — SSE4.1, AVX2, FMA3"
 license = "MIT"
