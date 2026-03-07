@@ -43,8 +43,8 @@ impl Vec8 {
 
     /// Creates a vector with all lanes set to `val`.
     #[inline(always)]
-    pub fn splat(val: f32) -> Self {
-        Self::store(unsafe { _mm256_set1_ps(val) })
+    pub const fn splat(val: f32) -> Self {
+        Vec8([val; 8])
     }
 
     /// Computes fused multiply-add: `self * a + b` per lane.
@@ -273,10 +273,7 @@ unsafe fn df_add2_f_f_avx(x: __m256, y: __m256) -> F2x8 {
     let v = _mm256_sub_ps(s, x);
     F2x8 {
         hi: s,
-        lo: _mm256_add_ps(
-            _mm256_sub_ps(x, _mm256_sub_ps(s, v)),
-            _mm256_sub_ps(y, v),
-        ),
+        lo: _mm256_add_ps(_mm256_sub_ps(x, _mm256_sub_ps(s, v)), _mm256_sub_ps(y, v)),
     }
 }
 
@@ -512,10 +509,7 @@ unsafe fn sinf_u1_avx2(d: __m256) -> __m256 {
         hi: _mm256_fmadd_ps(u, s2.hi, _mm256_set1_ps(-0.166666597127914428710938)),
         lo: _mm256_setzero_ps(),
     };
-    let x = df_add_f_f2_avx(
-        _mm256_set1_ps(1.0),
-        df_mul_f2_f2_avx(inner, s2),
-    );
+    let x = df_add_f_f2_avx(_mm256_set1_ps(1.0), df_mul_f2_f2_avx(inner, s2));
 
     let mut result = df_to_f_avx(t, x);
 
@@ -634,10 +628,7 @@ unsafe fn cosf_u1_avx2(d: __m256) -> __m256 {
         hi: _mm256_fmadd_ps(u, s2.hi, _mm256_set1_ps(-0.166666597127914428710938)),
         lo: _mm256_setzero_ps(),
     };
-    let x = df_add_f_f2_avx(
-        _mm256_set1_ps(1.0),
-        df_mul_f2_f2_avx(inner, s2),
-    );
+    let x = df_add_f_f2_avx(_mm256_set1_ps(1.0), df_mul_f2_f2_avx(inner, s2));
 
     let mut result = df_to_f_avx(t, x);
 
@@ -673,19 +664,13 @@ unsafe fn expf_avx2(d: __m256) -> __m256 {
 
     u = vldexp2_avx(u, q);
 
-    u = _mm256_andnot_ps(
-        _mm256_cmp_ps(d, _mm256_set1_ps(-104.0), _CMP_LT_OQ),
-        u,
-    );
+    u = _mm256_andnot_ps(_mm256_cmp_ps(d, _mm256_set1_ps(-104.0), _CMP_LT_OQ), u);
     u = _mm256_or_ps(
         _mm256_and_ps(
             _mm256_cmp_ps(_mm256_set1_ps(100.0), d, _CMP_LT_OQ),
             _mm256_set1_ps(f32::INFINITY),
         ),
-        _mm256_andnot_ps(
-            _mm256_cmp_ps(_mm256_set1_ps(100.0), d, _CMP_LT_OQ),
-            u,
-        ),
+        _mm256_andnot_ps(_mm256_cmp_ps(_mm256_set1_ps(100.0), d, _CMP_LT_OQ), u),
     );
 
     u

@@ -43,8 +43,8 @@ impl Vec4 {
 
     /// Creates a vector with all lanes set to `val`.
     #[inline(always)]
-    pub fn splat(val: f32) -> Self {
-        Self::store(unsafe { _mm_set1_ps(val) })
+    pub const fn splat(val: f32) -> Self {
+        Vec4([val; 4])
     }
 
     /// Computes fused multiply-add: `self * a + b` per lane.
@@ -299,10 +299,7 @@ unsafe fn df_add2_f2_f_sse(x: F2x4, y: __m128) -> F2x4 {
 unsafe fn df_add2_f2_f2_sse(x: F2x4, y: F2x4) -> F2x4 {
     let s = _mm_add_ps(x.hi, y.hi);
     let v = _mm_sub_ps(s, x.hi);
-    let t = _mm_add_ps(
-        _mm_sub_ps(x.hi, _mm_sub_ps(s, v)),
-        _mm_sub_ps(y.hi, v),
-    );
+    let t = _mm_add_ps(_mm_sub_ps(x.hi, _mm_sub_ps(s, v)), _mm_sub_ps(y.hi, v));
     F2x4 {
         hi: s,
         lo: _mm_add_ps(t, _mm_add_ps(x.lo, y.lo)),
@@ -335,26 +332,14 @@ unsafe fn df_mul_f2_f2_sse(x: F2x4, y: F2x4) -> F2x4 {
 #[inline(always)]
 unsafe fn df_squ_f2_sse(x: F2x4) -> F2x4 {
     let s = _mm_mul_ps(x.hi, x.hi);
-    let t = _mm_fmadd_ps(
-        _mm_add_ps(x.hi, x.hi),
-        x.lo,
-        _mm_fmsub_ps(x.hi, x.hi, s),
-    );
+    let t = _mm_fmadd_ps(_mm_add_ps(x.hi, x.hi), x.lo, _mm_fmsub_ps(x.hi, x.hi, s));
     F2x4 { hi: s, lo: t }
 }
 
 /// Evaluates the product of two double-float pairs as a single `__m128` (SSE).
 #[inline(always)]
 unsafe fn df_to_f_sse(x: F2x4, y: F2x4) -> __m128 {
-    _mm_fmadd_ps(
-        x.hi,
-        y.hi,
-        _mm_fmadd_ps(
-            x.lo,
-            y.hi,
-            _mm_mul_ps(x.hi, y.lo),
-        ),
-    )
+    _mm_fmadd_ps(x.hi, y.hi, _mm_fmadd_ps(x.lo, y.hi, _mm_mul_ps(x.hi, y.lo)))
 }
 
 /// Constructs 2^q as a float for each lane (SSE).
@@ -449,10 +434,7 @@ unsafe fn sinf_u1_sse(d: __m128) -> __m128 {
         q2 = _mm_srai_epi32(q2, 2);
 
         // If quadrant is odd, subtract pi/2
-        let odd = _mm_cmpeq_epi32(
-            _mm_and_si128(q2_raw, _mm_set1_epi32(1)),
-            _mm_set1_epi32(1),
-        );
+        let odd = _mm_cmpeq_epi32(_mm_and_si128(q2_raw, _mm_set1_epi32(1)), _mm_set1_epi32(1));
         let odd_f = _mm_castsi128_ps(odd);
         let half_pi_hi = _mm_set1_ps(3.1415927410125732422 * -0.5);
         let half_pi_lo = _mm_set1_ps(-8.7422776573475857731e-08 * -0.5);
@@ -461,22 +443,13 @@ unsafe fn sinf_u1_sse(d: __m128) -> __m128 {
             lo: vmulsign_sse(half_pi_lo, dfi.hi),
         };
         let adj = df_add2_f2_f2_sse(dfi, pi_adj);
-        let t_hi = _mm_or_ps(
-            _mm_and_ps(odd_f, adj.hi),
-            _mm_andnot_ps(odd_f, dfi.hi),
-        );
-        let t_lo = _mm_or_ps(
-            _mm_and_ps(odd_f, adj.lo),
-            _mm_andnot_ps(odd_f, dfi.lo),
-        );
+        let t_hi = _mm_or_ps(_mm_and_ps(odd_f, adj.hi), _mm_andnot_ps(odd_f, dfi.hi));
+        let t_lo = _mm_or_ps(_mm_and_ps(odd_f, adj.lo), _mm_andnot_ps(odd_f, dfi.lo));
         let mut t = df_normalize_sse(F2x4 { hi: t_hi, lo: t_lo });
 
         // NaN/Inf -> NaN
         let is_bad = _mm_or_ps(
-            _mm_cmpeq_ps(
-                _mm_and_ps(d, abs_mask),
-                _mm_set1_ps(f32::INFINITY),
-            ),
+            _mm_cmpeq_ps(_mm_and_ps(d, abs_mask), _mm_set1_ps(f32::INFINITY)),
             _mm_cmpunord_ps(d, d),
         );
         t.hi = _mm_or_ps(t.hi, is_bad);
@@ -488,14 +461,8 @@ unsafe fn sinf_u1_sse(d: __m128) -> __m128 {
             _mm_andnot_si128(in_range_i, q2),
         );
         final_s = F2x4 {
-            hi: _mm_or_ps(
-                _mm_and_ps(in_range, s.hi),
-                _mm_andnot_ps(in_range, t.hi),
-            ),
-            lo: _mm_or_ps(
-                _mm_and_ps(in_range, s.lo),
-                _mm_andnot_ps(in_range, t.lo),
-            ),
+            hi: _mm_or_ps(_mm_and_ps(in_range, s.hi), _mm_andnot_ps(in_range, t.hi)),
+            lo: _mm_or_ps(_mm_and_ps(in_range, s.lo), _mm_andnot_ps(in_range, t.lo)),
         };
     }
 
@@ -512,19 +479,13 @@ unsafe fn sinf_u1_sse(d: __m128) -> __m128 {
         hi: _mm_fmadd_ps(u, s2.hi, _mm_set1_ps(-0.166666597127914428710938)),
         lo: _mm_setzero_ps(),
     };
-    let x = df_add_f_f2_sse(
-        _mm_set1_ps(1.0),
-        df_mul_f2_f2_sse(inner, s2),
-    );
+    let x = df_add_f_f2_sse(_mm_set1_ps(1.0), df_mul_f2_f2_sse(inner, s2));
 
     // result = t * x (as scalar)
     let mut result = df_to_f_sse(t, x);
 
     // Apply sign flip for odd quadrants
-    let q_and_1 = _mm_cmpeq_epi32(
-        _mm_and_si128(final_q, _mm_set1_epi32(1)),
-        _mm_set1_epi32(1),
-    );
+    let q_and_1 = _mm_cmpeq_epi32(_mm_and_si128(final_q, _mm_set1_epi32(1)), _mm_set1_epi32(1));
     let sign_flip = _mm_and_ps(_mm_castsi128_ps(q_and_1), neg_zero);
     result = _mm_xor_ps(result, sign_flip);
 
@@ -595,14 +556,8 @@ unsafe fn cosf_u1_sse(d: __m128) -> __m128 {
             lo: vmulsign_sse(half_pi_lo, y),
         };
         let adj = df_add2_f2_f2_sse(dfi, pi_adj);
-        let t_hi = _mm_or_ps(
-            _mm_and_ps(even_f, adj.hi),
-            _mm_andnot_ps(even_f, dfi.hi),
-        );
-        let t_lo = _mm_or_ps(
-            _mm_and_ps(even_f, adj.lo),
-            _mm_andnot_ps(even_f, dfi.lo),
-        );
+        let t_hi = _mm_or_ps(_mm_and_ps(even_f, adj.hi), _mm_andnot_ps(even_f, dfi.hi));
+        let t_lo = _mm_or_ps(_mm_and_ps(even_f, adj.lo), _mm_andnot_ps(even_f, dfi.lo));
         let mut t = df_normalize_sse(F2x4 { hi: t_hi, lo: t_lo });
 
         let is_bad = _mm_or_ps(
@@ -617,14 +572,8 @@ unsafe fn cosf_u1_sse(d: __m128) -> __m128 {
             _mm_andnot_si128(in_range_i, q2),
         );
         final_s = F2x4 {
-            hi: _mm_or_ps(
-                _mm_and_ps(in_range, s.hi),
-                _mm_andnot_ps(in_range, t.hi),
-            ),
-            lo: _mm_or_ps(
-                _mm_and_ps(in_range, s.lo),
-                _mm_andnot_ps(in_range, t.lo),
-            ),
+            hi: _mm_or_ps(_mm_and_ps(in_range, s.hi), _mm_andnot_ps(in_range, t.hi)),
+            lo: _mm_or_ps(_mm_and_ps(in_range, s.lo), _mm_andnot_ps(in_range, t.lo)),
         };
     }
 
@@ -639,10 +588,7 @@ unsafe fn cosf_u1_sse(d: __m128) -> __m128 {
         hi: _mm_fmadd_ps(u, s2.hi, _mm_set1_ps(-0.166666597127914428710938)),
         lo: _mm_setzero_ps(),
     };
-    let x = df_add_f_f2_sse(
-        _mm_set1_ps(1.0),
-        df_mul_f2_f2_sse(inner, s2),
-    );
+    let x = df_add_f_f2_sse(_mm_set1_ps(1.0), df_mul_f2_f2_sse(inner, s2));
 
     let mut result = df_to_f_sse(t, x);
 
@@ -676,28 +622,19 @@ unsafe fn expf_sse(d: __m128) -> __m128 {
     u = _mm_fmadd_ps(u, s, _mm_set1_ps(0.5));
 
     // exp(s) = 1 + s + s^2 * u
-    u = _mm_add_ps(
-        _mm_set1_ps(1.0),
-        _mm_fmadd_ps(_mm_mul_ps(s, s), u, s),
-    );
+    u = _mm_add_ps(_mm_set1_ps(1.0), _mm_fmadd_ps(_mm_mul_ps(s, s), u, s));
 
     // Scale by 2^q
     u = vldexp2_sse(u, q);
 
     // Clamp: d < -104 -> 0, d > 100 -> inf
-    u = _mm_andnot_ps(
-        _mm_cmplt_ps(d, _mm_set1_ps(-104.0)),
-        u,
-    );
+    u = _mm_andnot_ps(_mm_cmplt_ps(d, _mm_set1_ps(-104.0)), u);
     u = _mm_or_ps(
         _mm_and_ps(
             _mm_cmplt_ps(_mm_set1_ps(100.0), d),
             _mm_set1_ps(f32::INFINITY),
         ),
-        _mm_andnot_ps(
-            _mm_cmplt_ps(_mm_set1_ps(100.0), d),
-            u,
-        ),
+        _mm_andnot_ps(_mm_cmplt_ps(_mm_set1_ps(100.0), d), u),
     );
 
     u

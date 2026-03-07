@@ -423,10 +423,7 @@ fn test_vec8_sqrt() {
 #[test]
 fn test_vec8_floor() {
     let a = Vec8([1.5, 2.7, -1.3, -2.9, 0.0, 3.99, -0.01, 100.1]);
-    assert_eq!(
-        a.floor().0,
-        [1.0, 2.0, -2.0, -3.0, 0.0, 3.0, -1.0, 100.0]
-    );
+    assert_eq!(a.floor().0, [1.0, 2.0, -2.0, -3.0, 0.0, 3.0, -1.0, 100.0]);
 }
 
 #[test]
@@ -449,7 +446,10 @@ fn test_vec8_mul_add() {
 fn test_vec8_add_scalar() {
     let a = Vec8([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
     let r = a + 100.0;
-    assert_eq!(r.0, [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0]);
+    assert_eq!(
+        r.0,
+        [101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0]
+    );
 }
 
 #[test]
@@ -518,11 +518,7 @@ fn test_vec8_index_oob() {
 
 #[test]
 fn test_vec8_sum() {
-    let vecs = vec![
-        Vec8([1.0; 8]),
-        Vec8([2.0; 8]),
-        Vec8([3.0; 8]),
-    ];
+    let vecs = vec![Vec8([1.0; 8]), Vec8([2.0; 8]), Vec8([3.0; 8])];
     let s: Vec8 = vecs.into_iter().sum();
     assert_eq!(s.0, [6.0; 8]);
 }
@@ -568,7 +564,9 @@ fn test_vec8_clone_copy() {
 
 #[test]
 fn test_vec8_sin_basic() {
-    let vals = [0.0, FRAC_PI_6, FRAC_PI_4, FRAC_PI_3, FRAC_PI_2, PI, -FRAC_PI_4, -PI];
+    let vals = [
+        0.0, FRAC_PI_6, FRAC_PI_4, FRAC_PI_3, FRAC_PI_2, PI, -FRAC_PI_4, -PI,
+    ];
     let v = Vec8(vals);
     let r = v.sin();
     for i in 0..8 {
@@ -617,7 +615,9 @@ fn test_vec8_sin_large() {
 
 #[test]
 fn test_vec8_cos_basic() {
-    let vals = [0.0, FRAC_PI_6, FRAC_PI_4, FRAC_PI_3, FRAC_PI_2, PI, -FRAC_PI_4, -PI];
+    let vals = [
+        0.0, FRAC_PI_6, FRAC_PI_4, FRAC_PI_3, FRAC_PI_2, PI, -FRAC_PI_4, -PI,
+    ];
     let v = Vec8(vals);
     let r = v.cos();
     for i in 0..8 {
@@ -668,7 +668,16 @@ fn test_vec8_exp_basic() {
 
 #[test]
 fn test_vec8_exp_edge() {
-    let v = Vec8([0.0, -200.0, 200.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 88.0, -88.0]);
+    let v = Vec8([
+        0.0,
+        -200.0,
+        200.0,
+        f32::NAN,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        88.0,
+        -88.0,
+    ]);
     let r = v.exp();
     assert_eq!(r[0], 1.0);
     assert_eq!(r[1], 0.0);
@@ -699,10 +708,7 @@ fn test_vec4_sin_sweep() {
         }
         x += 4.0 * step;
     }
-    assert!(
-        max_ulp <= 1.0,
-        "Vec4 sin max ULP error: {max_ulp} > 1.0"
-    );
+    assert!(max_ulp <= 1.0, "Vec4 sin max ULP error: {max_ulp} > 1.0");
 }
 
 #[test]
@@ -722,10 +728,7 @@ fn test_vec4_cos_sweep() {
         }
         x += 4.0 * step;
     }
-    assert!(
-        max_ulp <= 1.0,
-        "Vec4 cos max ULP error: {max_ulp} > 1.0"
-    );
+    assert!(max_ulp <= 1.0, "Vec4 cos max ULP error: {max_ulp} > 1.0");
 }
 
 #[test]
@@ -747,10 +750,7 @@ fn test_vec4_exp_sweep() {
         }
         x += 4.0 * step;
     }
-    assert!(
-        max_ulp <= 1.0,
-        "Vec4 exp max ULP error: {max_ulp} > 1.0"
-    );
+    assert!(max_ulp <= 1.0, "Vec4 exp max ULP error: {max_ulp} > 1.0");
 }
 
 #[test]
@@ -779,10 +779,7 @@ fn test_vec8_sin_sweep() {
         }
         x += 8.0 * step;
     }
-    assert!(
-        max_ulp <= 1.0,
-        "Vec8 sin max ULP error: {max_ulp} > 1.0"
-    );
+    assert!(max_ulp <= 1.0, "Vec8 sin max ULP error: {max_ulp} > 1.0");
 }
 
 #[test]
@@ -811,10 +808,7 @@ fn test_vec8_cos_sweep() {
         }
         x += 8.0 * step;
     }
-    assert!(
-        max_ulp <= 1.0,
-        "Vec8 cos max ULP error: {max_ulp} > 1.0"
-    );
+    assert!(max_ulp <= 1.0, "Vec8 cos max ULP error: {max_ulp} > 1.0");
 }
 
 #[test]
@@ -845,10 +839,7 @@ fn test_vec8_exp_sweep() {
         }
         x += 8.0 * step;
     }
-    assert!(
-        max_ulp <= 1.0,
-        "Vec8 exp max ULP error: {max_ulp} > 1.0"
-    );
+    assert!(max_ulp <= 1.0, "Vec8 exp max ULP error: {max_ulp} > 1.0");
 }
 
 // ============ Sin/Cos identity tests ============
@@ -1101,8 +1092,16 @@ fn test_vec4_cos_multiples_of_half_pi() {
 
 #[test]
 fn test_vec8_sin_negative_multiples() {
-    let vals = [-PI, -2.0 * PI, -3.0 * PI, -4.0 * PI,
-                -FRAC_PI_2, -FRAC_PI_4, -FRAC_PI_6, -FRAC_PI_3];
+    let vals = [
+        -PI,
+        -2.0 * PI,
+        -3.0 * PI,
+        -4.0 * PI,
+        -FRAC_PI_2,
+        -FRAC_PI_4,
+        -FRAC_PI_6,
+        -FRAC_PI_3,
+    ];
     let v = Vec8(vals);
     let r = v.sin();
     for i in 0..8 {
@@ -1119,7 +1118,10 @@ fn test_vec4_exp_near_clamp_boundaries() {
     let v = Vec4(vals);
     let r = v.exp();
     // -103.9 should still produce a small positive value
-    assert!(r[0] > 0.0 && r[0].is_finite(), "exp(-103.9) should be finite positive");
+    assert!(
+        r[0] > 0.0 && r[0].is_finite(),
+        "exp(-103.9) should be finite positive"
+    );
     // -104 and below should clamp to 0
     assert_eq!(r[1], 0.0, "exp(-104) should be 0");
     assert_eq!(r[2], 0.0, "exp(-104.1) should be 0");
@@ -1236,8 +1238,16 @@ fn test_vec4_floor_integers() {
 
 #[test]
 fn test_vec8_neg_special() {
-    let v = Vec8([0.0, -0.0, f32::INFINITY, f32::NEG_INFINITY,
-                  f32::NAN, 1.0, -1.0, f32::MAX]);
+    let v = Vec8([
+        0.0,
+        -0.0,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::NAN,
+        1.0,
+        -1.0,
+        f32::MAX,
+    ]);
     let r = -v;
     assert!(r[0].is_sign_negative());
     assert!(r[1].is_sign_positive());
@@ -1251,8 +1261,16 @@ fn test_vec8_neg_special() {
 
 #[test]
 fn test_vec8_abs_special() {
-    let v = Vec8([-0.0, 0.0, f32::NEG_INFINITY, f32::INFINITY,
-                  f32::NAN, -f32::MAX, f32::MIN_POSITIVE, -f32::MIN_POSITIVE]);
+    let v = Vec8([
+        -0.0,
+        0.0,
+        f32::NEG_INFINITY,
+        f32::INFINITY,
+        f32::NAN,
+        -f32::MAX,
+        f32::MIN_POSITIVE,
+        -f32::MIN_POSITIVE,
+    ]);
     let r = v.abs();
     assert!(r[0].is_sign_positive());
     assert_eq!(r[2], f32::INFINITY);
@@ -1290,7 +1308,16 @@ fn test_vec4_div_by_zero() {
 
 #[test]
 fn test_vec8_div_by_zero() {
-    let a = Vec8([1.0, -1.0, 0.0, f32::INFINITY, f32::NEG_INFINITY, -0.0, 2.0, -2.0]);
+    let a = Vec8([
+        1.0,
+        -1.0,
+        0.0,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        -0.0,
+        2.0,
+        -2.0,
+    ]);
     let b = Vec8([0.0; 8]);
     let r = a / b;
     assert_eq!(r[0], f32::INFINITY);
@@ -1493,8 +1520,14 @@ fn test_vec8_sin_sweep_large() {
     let mut x = 125.0f32;
     while x < 1000.0 {
         let v = Vec8([
-            x, x + step, x + 2.0 * step, x + 3.0 * step,
-            x + 4.0 * step, x + 5.0 * step, x + 6.0 * step, x + 7.0 * step,
+            x,
+            x + step,
+            x + 2.0 * step,
+            x + 3.0 * step,
+            x + 4.0 * step,
+            x + 5.0 * step,
+            x + 6.0 * step,
+            x + 7.0 * step,
         ]);
         let r = v.sin();
         for i in 0..8 {
@@ -1519,8 +1552,14 @@ fn test_vec8_cos_sweep_large() {
     let mut x = 125.0f32;
     while x < 1000.0 {
         let v = Vec8([
-            x, x + step, x + 2.0 * step, x + 3.0 * step,
-            x + 4.0 * step, x + 5.0 * step, x + 6.0 * step, x + 7.0 * step,
+            x,
+            x + step,
+            x + 2.0 * step,
+            x + 3.0 * step,
+            x + 4.0 * step,
+            x + 5.0 * step,
+            x + 6.0 * step,
+            x + 7.0 * step,
         ]);
         let r = v.cos();
         for i in 0..8 {
@@ -1701,8 +1740,16 @@ fn test_vec4_exp_inf() {
 
 #[test]
 fn test_vec8_exp_inf() {
-    let v = Vec8([f32::INFINITY, f32::NEG_INFINITY, 0.0, 1.0,
-                  f32::NAN, -1.0, 50.0, -50.0]);
+    let v = Vec8([
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        0.0,
+        1.0,
+        f32::NAN,
+        -1.0,
+        50.0,
+        -50.0,
+    ]);
     let r = v.exp();
     assert_eq!(r[0], f32::INFINITY);
     assert_eq!(r[1], 0.0);
@@ -1718,7 +1765,11 @@ fn test_vec4_vec8_sin_consistency() {
     let r4 = Vec4(vals).sin();
     let r8 = Vec8([vals[0], vals[1], vals[2], vals[3], 0.0, 0.0, 0.0, 0.0]).sin();
     for i in 0..4 {
-        assert_eq!(r4[i], r8[i], "Vec4/Vec8 sin mismatch at lane {i} for x={}", vals[i]);
+        assert_eq!(
+            r4[i], r8[i],
+            "Vec4/Vec8 sin mismatch at lane {i} for x={}",
+            vals[i]
+        );
     }
 }
 
@@ -1728,7 +1779,11 @@ fn test_vec4_vec8_cos_consistency() {
     let r4 = Vec4(vals).cos();
     let r8 = Vec8([vals[0], vals[1], vals[2], vals[3], 0.0, 0.0, 0.0, 0.0]).cos();
     for i in 0..4 {
-        assert_eq!(r4[i], r8[i], "Vec4/Vec8 cos mismatch at lane {i} for x={}", vals[i]);
+        assert_eq!(
+            r4[i], r8[i],
+            "Vec4/Vec8 cos mismatch at lane {i} for x={}",
+            vals[i]
+        );
     }
 }
 
@@ -1738,7 +1793,11 @@ fn test_vec4_vec8_exp_consistency() {
     let r4 = Vec4(vals).exp();
     let r8 = Vec8([vals[0], vals[1], vals[2], vals[3], 0.0, 0.0, 0.0, 0.0]).exp();
     for i in 0..4 {
-        assert_eq!(r4[i], r8[i], "Vec4/Vec8 exp mismatch at lane {i} for x={}", vals[i]);
+        assert_eq!(
+            r4[i], r8[i],
+            "Vec4/Vec8 exp mismatch at lane {i} for x={}",
+            vals[i]
+        );
     }
 }
 
@@ -1792,7 +1851,10 @@ fn test_df_add2_f2_f2_scalar() {
     let (hi, lo) = df_add2_f2_f2(1.0, 1e-10, 2.0, 2e-10);
     let sum = hi as f64 + lo as f64;
     let expected = 1.0f64 + 1e-10 + 2.0 + 2e-10;
-    assert!((sum - expected).abs() < 1e-14, "df_add2_f2_f2 error: {sum} vs {expected}");
+    assert!(
+        (sum - expected).abs() < 1e-14,
+        "df_add2_f2_f2 error: {sum} vs {expected}"
+    );
 }
 
 #[test]
@@ -1803,7 +1865,10 @@ fn test_df_mul_f_f_scalar() {
     // hi+lo pair should represent the exact product of the f32 values
     let result = hi as f64 + lo as f64;
     let expected = (a as f64) * (b as f64);
-    assert!((result - expected).abs() < 1e-14, "df_mul_f_f error: {result} vs {expected}");
+    assert!(
+        (result - expected).abs() < 1e-14,
+        "df_mul_f_f error: {result} vs {expected}"
+    );
 
     // Exact case
     let (hi, lo) = df_mul_f_f(2.0, 3.0);
@@ -1851,7 +1916,10 @@ fn test_rempif_scalar_medium_input() {
     // 200/(2*pi) ≈ 31.83 → reduced to ~0.83 * 2*pi ≈ 5.22
     let reconstructed = (q as f64) * std::f64::consts::FRAC_PI_2 + hi as f64 + lo as f64;
     let diff = (reconstructed.sin() - (200.0f64).sin()).abs();
-    assert!(diff < 1e-5, "rempif_scalar(200) reconstruction error: {diff}");
+    assert!(
+        diff < 1e-5,
+        "rempif_scalar(200) reconstruction error: {diff}"
+    );
 }
 
 #[test]
@@ -1861,14 +1929,26 @@ fn test_rempif_scalar_very_large_exponent() {
     let large = 1e30f32;
     let (hi, lo, _q) = rempif_scalar(large);
     // Just verify it doesn't crash and returns finite values
-    assert!(hi.is_finite(), "rempif_scalar(1e30) hi should be finite, got {hi}");
-    assert!(lo.is_finite(), "rempif_scalar(1e30) lo should be finite, got {lo}");
+    assert!(
+        hi.is_finite(),
+        "rempif_scalar(1e30) hi should be finite, got {hi}"
+    );
+    assert!(
+        lo.is_finite(),
+        "rempif_scalar(1e30) lo should be finite, got {lo}"
+    );
 
     // Try 1e35 (exponent ~116)
     let very_large = 1e35f32;
     let (hi, lo, _q) = rempif_scalar(very_large);
-    assert!(hi.is_finite(), "rempif_scalar(1e35) hi should be finite, got {hi}");
-    assert!(lo.is_finite(), "rempif_scalar(1e35) lo should be finite, got {lo}");
+    assert!(
+        hi.is_finite(),
+        "rempif_scalar(1e35) hi should be finite, got {hi}"
+    );
+    assert!(
+        lo.is_finite(),
+        "rempif_scalar(1e35) lo should be finite, got {lo}"
+    );
 }
 
 #[test]
@@ -1892,7 +1972,12 @@ fn test_vec4_sin_extreme_large() {
     let r = v.sin();
     for i in 0..4 {
         assert!(r[i].is_finite(), "sin({}) should be finite", vals[i]);
-        assert!(r[i].abs() <= 1.0, "sin({}) should be in [-1,1], got {}", vals[i], r[i]);
+        assert!(
+            r[i].abs() <= 1.0,
+            "sin({}) should be in [-1,1], got {}",
+            vals[i],
+            r[i]
+        );
     }
 }
 
@@ -1903,7 +1988,12 @@ fn test_vec4_cos_extreme_large() {
     let r = v.cos();
     for i in 0..4 {
         assert!(r[i].is_finite(), "cos({}) should be finite", vals[i]);
-        assert!(r[i].abs() <= 1.0, "cos({}) should be in [-1,1], got {}", vals[i], r[i]);
+        assert!(
+            r[i].abs() <= 1.0,
+            "cos({}) should be in [-1,1], got {}",
+            vals[i],
+            r[i]
+        );
     }
 }
 
@@ -1914,7 +2004,12 @@ fn test_vec8_sin_extreme_large() {
     let r = v.sin();
     for i in 0..8 {
         assert!(r[i].is_finite(), "sin({}) should be finite", vals[i]);
-        assert!(r[i].abs() <= 1.0, "sin({}) should be in [-1,1], got {}", vals[i], r[i]);
+        assert!(
+            r[i].abs() <= 1.0,
+            "sin({}) should be in [-1,1], got {}",
+            vals[i],
+            r[i]
+        );
     }
 }
 
@@ -1925,7 +2020,12 @@ fn test_vec8_cos_extreme_large() {
     let r = v.cos();
     for i in 0..4 {
         assert!(r[i].is_finite(), "cos({}) should be finite", vals[i]);
-        assert!(r[i].abs() <= 1.0, "cos({}) should be in [-1,1], got {}", vals[i], r[i]);
+        assert!(
+            r[i].abs() <= 1.0,
+            "cos({}) should be in [-1,1], got {}",
+            vals[i],
+            r[i]
+        );
     }
 }
 
@@ -2005,8 +2105,16 @@ fn test_vec4_floor_nan() {
 
 #[test]
 fn test_vec8_floor_special() {
-    let v = Vec8([f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.0,
-                  0.0, 1.0, -1.0, 0.5]);
+    let v = Vec8([
+        f32::NAN,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        -0.0,
+        0.0,
+        1.0,
+        -1.0,
+        0.5,
+    ]);
     let r = v.floor();
     assert!(r[0].is_nan());
     assert_eq!(r[1], f32::INFINITY);
