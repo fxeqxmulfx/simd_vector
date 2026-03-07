@@ -97,14 +97,14 @@ impl Vec8 {
         }
     }
 
-    /// Computes the sine of each lane (radians). SLEEF u1 precision (~1 ULP).
+    /// Computes the sine of each lane (radians). SLEEF u10 precision (< 1 ULP).
     pub fn sin(self) -> Self {
-        unsafe { Self::store(sinf_u1_avx2(self.load())) }
+        unsafe { Self::store(sinf_u10_avx2(self.load())) }
     }
 
-    /// Computes the cosine of each lane (radians). SLEEF u1 precision (~1 ULP).
+    /// Computes the cosine of each lane (radians). SLEEF u10 precision (< 1 ULP).
     pub fn cos(self) -> Self {
-        unsafe { Self::store(cosf_u1_avx2(self.load())) }
+        unsafe { Self::store(cosf_u10_avx2(self.load())) }
     }
 
     /// Computes e^x for each lane. SLEEF precision.
@@ -418,8 +418,8 @@ unsafe fn visnegzero_avx(d: __m256) -> __m256 {
     _mm256_cmp_ps(d, _mm256_set1_ps(-0.0), _CMP_EQ_OQ)
 }
 
-/// SLEEF `xsinf_u1` sine implementation for AVX2+FMA3.
-unsafe fn sinf_u1_avx2(d: __m256) -> __m256 {
+/// SLEEF `xsinf_u10` sine implementation for AVX2+FMA3.
+unsafe fn sinf_u10_avx2(d: __m256) -> __m256 {
     let neg_zero = _mm256_set1_ps(-0.0);
     let abs_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFF_FFFF));
 
@@ -529,8 +529,8 @@ unsafe fn sinf_u1_avx2(d: __m256) -> __m256 {
     result
 }
 
-/// SLEEF `xcosf_u1` cosine implementation for AVX2+FMA3.
-unsafe fn cosf_u1_avx2(d: __m256) -> __m256 {
+/// SLEEF `xcosf_u10` cosine implementation for AVX2+FMA3.
+unsafe fn cosf_u10_avx2(d: __m256) -> __m256 {
     let neg_zero = _mm256_set1_ps(-0.0);
     let abs_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFF_FFFF));
 

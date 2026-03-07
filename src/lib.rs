@@ -6,7 +6,7 @@ mod vec8;
 pub use vec4::Vec4;
 pub use vec8::Vec8;
 
-// SLEEF constants for single-precision trig range reduction (u1 variants)
+// SLEEF constants for single-precision trig range reduction (u10 variants)
 const PI_A2F: f32 = 3.1414794921875;
 const PI_B2F: f32 = 0.00011315941810607910156;
 const PI_C2F: f32 = 1.9841872589410058936e-09;
