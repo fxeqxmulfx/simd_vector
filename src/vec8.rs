@@ -53,6 +53,23 @@ impl Vec8 {
         unsafe { Self::store(_mm256_fmadd_ps(self.load(), a.load(), b.load())) }
     }
 
+    /// Sums all lanes, returning a scalar.
+    #[inline(always)]
+    pub fn sum(self) -> f32 {
+        unsafe {
+            let v = self.load();
+            let lo = _mm256_cvtps_pd(_mm256_castps256_ps128(v));
+            let hi = _mm256_cvtps_pd(_mm256_extractf128_ps(v, 1));
+            let sum4 = _mm256_add_pd(lo, hi);
+            let hi2 = _mm256_extractf128_pd(sum4, 1);
+            let lo2 = _mm256_castpd256_pd128(sum4);
+            let sum2 = _mm_add_pd(lo2, hi2);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
+        }
+    }
+
     /// Computes the dot product of two vectors, returning a scalar.
     #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
@@ -97,6 +114,36 @@ impl Vec8 {
             Self::store(_mm256_round_ps(
                 self.load(),
                 _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC,
+            ))
+        }
+    }
+
+    /// Returns the ceil (round toward positive infinity) of each lane.
+    #[inline(always)]
+    pub fn ceil(self) -> Self {
+        unsafe {
+            Self::store(_mm256_round_ps(
+                self.load(),
+                _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC,
+            ))
+        }
+    }
+
+    /// Returns the nearest integer (round half away from zero) of each lane.
+    #[inline(always)]
+    pub fn round(self) -> Self {
+        unsafe {
+            let v = self.load();
+            let t = _mm256_round_ps(v, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC);
+            let r = _mm256_sub_ps(v, t);
+            let abs_r = _mm256_andnot_ps(_mm256_set1_ps(-0.0), r);
+            let need_adjust = _mm256_cmp_ps(abs_r, _mm256_set1_ps(0.5), _CMP_GE_OQ);
+            let sign = _mm256_and_ps(v, _mm256_set1_ps(-0.0));
+            let one_signed = _mm256_or_ps(_mm256_set1_ps(1.0), sign);
+            let adjusted = _mm256_add_ps(t, one_signed);
+            Self::store(_mm256_or_ps(
+                _mm256_and_ps(need_adjust, adjusted),
+                _mm256_andnot_ps(need_adjust, t),
             ))
         }
     }

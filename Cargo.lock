@@ -4,4 +4,4 @@ version = 4
 
 [[package]]
 name = "simd_vector"
-version = "0.2.5"
+version = "0.3.0"

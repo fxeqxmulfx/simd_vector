@@ -8,7 +8,7 @@ SIMD vector types for x86-64 in pure stable Rust.
 ## Features
 
 - Arithmetic: `+`, `-`, `*`, `/` (vec×vec, vec×f32, f32×vec)
-- `splat`, `abs`, `neg`, `sqrt`, `floor`, `dot`, `mul_add` (FMA)
+- `splat`, `abs`, `neg`, `sqrt`, `floor`, `ceil`, `round`, `sum`, `dot`, `mul_add` (FMA)
 - `Sum`, `Index`, `From`/`Into` array, `Clone`, `Copy`, `Debug`, `PartialEq`
 - Transcendentals: `sin`, `cos`, `exp` — ported from [SLEEF](https://github.com/shibatch/sleef)
 
@@ -20,12 +20,15 @@ SIMD vector types for x86-64 in pure stable Rust.
 | `neg` | 0.0 | exact bit flip |
 | `abs` | 0.0 | exact bit mask |
 | `floor` | 0.0 | exact (IEEE 754 `roundps`) |
+| `ceil` | 0.0 | exact (IEEE 754 `roundps`) |
+| `round` | 0.0 | exact (half away from zero, matches `f32::round`) |
 | `splat` | 0.0 | exact broadcast |
+| `sum` | ≤ 0.5 | f64 intermediate: exact tree sum, single rounding on f64→f32 |
 | `dot` | ≤ 0.5 | f64 intermediate: exact products + tree sum, single rounding on f64→f32 |
 | `mul_add` | ≤ 0.5 | single FMA instruction |
 | `sqrt` | 0.0 | IEEE 754 correctly rounded (`sqrtps`) |
-| `sin` | ≤ 1.0 | SLEEF `xsinf_u10` — Cody-Waite + Payne-Hanek + double-float polynomial |
-| `cos` | ≤ 1.0 | SLEEF `xcosf_u10` — Cody-Waite + Payne-Hanek + double-float polynomial |
+| `sin` | ≤ 1.0 | SLEEF `xsinf_u1` — Cody-Waite + Payne-Hanek + double-float polynomial |
+| `cos` | ≤ 1.0 | SLEEF `xcosf_u1` — Cody-Waite + Payne-Hanek + double-float polynomial |
 | `exp` | ≤ 1.0 | SLEEF `xexpf` — ln(2) range reduction + degree-6 polynomial + ldexp |
 
 ### Transcendental implementation details
@@ -65,7 +68,7 @@ let e = Vec8::splat(1.0).exp(); // [2.71828, 2.71828, ...] (8 lanes)
 
 ## Tests
 
-189 tests covering all operations, edge cases (NaN, Inf, -0.0, subnormals), and sampled ULP sweep verification.
+345 tests covering all operations, edge cases (NaN, Inf, -0.0, subnormals), sampled ULP sweep verification, trigonometric identities, arithmetic properties, and AVX2 lane independence.
 
 ```
 cargo test

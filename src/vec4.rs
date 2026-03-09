@@ -53,6 +53,20 @@ impl Vec4 {
         unsafe { Self::store(_mm_fmadd_ps(self.load(), a.load(), b.load())) }
     }
 
+    /// Sums all lanes, returning a scalar.
+    #[inline(always)]
+    pub fn sum(self) -> f32 {
+        unsafe {
+            let v = _mm256_cvtps_pd(self.load());
+            let hi = _mm256_extractf128_pd(v, 1);
+            let lo = _mm256_castpd256_pd128(v);
+            let sum2 = _mm_add_pd(lo, hi);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
+        }
+    }
+
     /// Computes the dot product of two vectors, returning a scalar.
     #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
@@ -91,6 +105,36 @@ impl Vec4 {
             Self::store(_mm_round_ps(
                 self.load(),
                 _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC,
+            ))
+        }
+    }
+
+    /// Returns the ceil (round toward positive infinity) of each lane.
+    #[inline(always)]
+    pub fn ceil(self) -> Self {
+        unsafe {
+            Self::store(_mm_round_ps(
+                self.load(),
+                _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC,
+            ))
+        }
+    }
+
+    /// Returns the nearest integer (round half away from zero) of each lane.
+    #[inline(always)]
+    pub fn round(self) -> Self {
+        unsafe {
+            let v = self.load();
+            let t = _mm_round_ps(v, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC);
+            let r = _mm_sub_ps(v, t);
+            let abs_r = _mm_andnot_ps(_mm_set1_ps(-0.0), r);
+            let need_adjust = _mm_cmpge_ps(abs_r, _mm_set1_ps(0.5));
+            let sign = _mm_and_ps(v, _mm_set1_ps(-0.0));
+            let one_signed = _mm_or_ps(_mm_set1_ps(1.0), sign);
+            let adjusted = _mm_add_ps(t, one_signed);
+            Self::store(_mm_or_ps(
+                _mm_and_ps(need_adjust, adjusted),
+                _mm_andnot_ps(need_adjust, t),
             ))
         }
     }
