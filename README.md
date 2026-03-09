@@ -78,10 +78,10 @@ Coverage (via `cargo llvm-cov`):
 
 ```
 Filename   Regions  Missed  Cover   Functions  Missed  Cover   Lines  Missed  Cover
-lib.rs     142      0       100.00% 6          0       100.00% 61     0       100.00%
-vec4.rs    892      0       100.00% 48         0       100.00% 437    0       100.00%
-vec8.rs    915      0       100.00% 48         0       100.00% 441    0       100.00%
-TOTAL      1949     0       100.00% 102        0       100.00% 939    0       100.00%
+lib.rs     142      0       100.00% 6          0       100.00% 68     0       100.00%
+vec4.rs    990      0       100.00% 51         0       100.00% 414    0       100.00%
+vec8.rs    1021     0       100.00% 51         0       100.00% 463    0       100.00%
+TOTAL      2153     0       100.00% 108        0       100.00% 945    0       100.00%
 ```
 
 ## License
