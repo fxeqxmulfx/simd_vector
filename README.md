@@ -24,8 +24,8 @@ SIMD vector types for x86-64 in pure stable Rust.
 | `dot` | ≤ 0.5 | f64 intermediate: exact products + tree sum, single rounding on f64→f32 |
 | `mul_add` | ≤ 0.5 | single FMA instruction |
 | `sqrt` | 0.0 | IEEE 754 correctly rounded (`sqrtps`) |
-| `sin` | ≤ 1.0 | SLEEF `xsinf_u1` — Cody-Waite + Payne-Hanek + double-float polynomial |
-| `cos` | ≤ 1.0 | SLEEF `xcosf_u1` — Cody-Waite + Payne-Hanek + double-float polynomial |
+| `sin` | ≤ 1.0 | SLEEF `xsinf_u10` — Cody-Waite + Payne-Hanek + double-float polynomial |
+| `cos` | ≤ 1.0 | SLEEF `xcosf_u10` — Cody-Waite + Payne-Hanek + double-float polynomial |
 | `exp` | ≤ 1.0 | SLEEF `xexpf` — ln(2) range reduction + degree-6 polynomial + ldexp |
 
 ### Transcendental implementation details
@@ -59,7 +59,7 @@ let a = Vec4([1.0, 2.0, 3.0, 4.0]);
 let b = Vec4([5.0, 6.0, 7.0, 8.0]);
 let c = a + b;              // [6.0, 8.0, 10.0, 12.0]
 let d = a.dot(b);           // 70.0
-let s = a.sin();            // per-lane sin
+let s = a.sin();            // [0.8415, 0.9093, 0.1411, -0.7568]
 let e = Vec8::splat(1.0).exp(); // [2.71828, 2.71828, ...] (8 lanes)
 ```
 
