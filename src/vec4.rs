@@ -29,13 +29,13 @@ impl Vec4 {
 
     /// Loads the array contents into an SSE register.
     #[inline(always)]
-    fn load(&self) -> __m128 {
+    pub(crate) fn load(&self) -> __m128 {
         unsafe { _mm_load_ps(self.0.as_ptr()) }
     }
 
     /// Stores an SSE register into a new `Vec4`.
     #[inline(always)]
-    fn store(v: __m128) -> Self {
+    pub(crate) fn store(v: __m128) -> Self {
         let mut r = Vec4([0.0; 4]);
         unsafe { _mm_store_ps(r.0.as_mut_ptr(), v) };
         r
@@ -53,35 +53,6 @@ impl Vec4 {
         unsafe { Self::store(_mm_fmadd_ps(self.load(), a.load(), b.load())) }
     }
 
-    /// Sums all lanes, returning a scalar.
-    #[inline(always)]
-    pub fn sum(self) -> f32 {
-        unsafe {
-            let v = _mm256_cvtps_pd(self.load());
-            let hi = _mm256_extractf128_pd(v, 1);
-            let lo = _mm256_castpd256_pd128(v);
-            let sum2 = _mm_add_pd(lo, hi);
-            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
-            let sum1 = _mm_add_sd(sum2, hi_elem);
-            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
-        }
-    }
-
-    /// Computes the dot product of two vectors, returning a scalar.
-    #[inline(always)]
-    pub fn dot(self, other: Self) -> f32 {
-        unsafe {
-            let a_f64 = _mm256_cvtps_pd(self.load());
-            let b_f64 = _mm256_cvtps_pd(other.load());
-            let prod = _mm256_mul_pd(a_f64, b_f64);
-            let hi = _mm256_extractf128_pd(prod, 1);
-            let lo = _mm256_castpd256_pd128(prod);
-            let sum2 = _mm_add_pd(lo, hi);
-            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
-            let sum1 = _mm_add_sd(sum2, hi_elem);
-            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
-        }
-    }
 
     /// Returns the absolute value of each lane.
     #[inline(always)]
@@ -138,20 +109,70 @@ impl Vec4 {
             ))
         }
     }
+}
 
-    /// Computes the sine of each lane (radians). SLEEF u10 precision (< 1 ULP).
-    pub fn sin(self) -> Self {
+impl crate::precise::PreciseMath for Vec4 {
+    fn sin(self) -> Self {
         unsafe { Self::store(sinf_u10_sse(self.load())) }
     }
-
-    /// Computes the cosine of each lane (radians). SLEEF u10 precision (< 1 ULP).
-    pub fn cos(self) -> Self {
+    fn cos(self) -> Self {
         unsafe { Self::store(cosf_u10_sse(self.load())) }
     }
-
-    /// Computes e^x for each lane. SLEEF precision.
-    pub fn exp(self) -> Self {
+    fn exp(self) -> Self {
         unsafe { Self::store(expf_sse(self.load())) }
+    }
+    fn sum(self) -> f32 {
+        unsafe {
+            let v = _mm256_cvtps_pd(self.load());
+            let hi = _mm256_extractf128_pd(v, 1);
+            let lo = _mm256_castpd256_pd128(v);
+            let sum2 = _mm_add_pd(lo, hi);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
+        }
+    }
+    fn dot(self, other: Self) -> f32 {
+        unsafe {
+            let a_f64 = _mm256_cvtps_pd(self.load());
+            let b_f64 = _mm256_cvtps_pd(other.load());
+            let prod = _mm256_mul_pd(a_f64, b_f64);
+            let hi = _mm256_extractf128_pd(prod, 1);
+            let lo = _mm256_castpd256_pd128(prod);
+            let sum2 = _mm_add_pd(lo, hi);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
+        }
+    }
+}
+
+impl crate::fast::FastMath for Vec4 {
+    fn sin(self) -> Self {
+        unsafe { Self::store(sinf_u35_sse(self.load())) }
+    }
+    fn cos(self) -> Self {
+        unsafe { Self::store(cosf_u35_sse(self.load())) }
+    }
+    fn sum(self) -> f32 {
+        unsafe {
+            let v = self.load();
+            let shuf = _mm_movehdup_ps(v);
+            let sums = _mm_add_ps(v, shuf);
+            let shuf2 = _mm_movehl_ps(sums, sums);
+            let sums2 = _mm_add_ss(sums, shuf2);
+            _mm_cvtss_f32(sums2)
+        }
+    }
+    fn dot(self, other: Self) -> f32 {
+        unsafe {
+            let prod = _mm_mul_ps(self.load(), other.load());
+            let shuf = _mm_movehdup_ps(prod);
+            let sums = _mm_add_ps(prod, shuf);
+            let shuf2 = _mm_movehl_ps(sums, sums);
+            let sums2 = _mm_add_ss(sums, shuf2);
+            _mm_cvtss_f32(sums2)
+        }
     }
 }
 
@@ -690,3 +711,239 @@ unsafe fn expf_sse(d: __m128) -> __m128 {
 
     u
 }
+
+// ---------------------------------------------------------------------------
+// SLEEF u35 (≤ 3.5 ULP) transcendental implementations (SSE4.1 + FMA3)
+// ---------------------------------------------------------------------------
+
+/// SLEEF `xsinf` sine for SSE4.1+FMA3 (≤ 3.5 ULP).
+///
+/// Same polynomial as u10, but uses scalar arithmetic instead of double-float pairs.
+/// Three-tier range reduction:
+/// - |x| < 125: 3-part Cody-Waite (PI_A2f/B2f/C2f)
+/// - |x| < 39000: 4-part Cody-Waite (PI_Af/Bf/Cf/Df)
+/// - |x| >= 39000: Payne-Hanek table-based reduction
+unsafe fn sinf_u35_sse(d: __m128) -> __m128 {
+    let abs_mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFF_FFFF));
+    let r = d;
+
+    // Range reduction: q = round(d / pi)
+    let q = _mm_cvtps_epi32(_mm_mul_ps(d, _mm_set1_ps(M_1_PI_F)));
+    let u = _mm_cvtepi32_ps(q);
+
+    // 3-part Cody-Waite: d = d - q*PI_A2f - q*PI_B2f - q*PI_C2f
+    let mut d = _mm_fmadd_ps(u, _mm_set1_ps(-PI_A2F), d);
+    d = _mm_fmadd_ps(u, _mm_set1_ps(-PI_B2F), d);
+    d = _mm_fmadd_ps(u, _mm_set1_ps(-PI_C2F), d);
+
+    let abs_r = _mm_and_ps(r, abs_mask);
+    let in_range1 = _mm_cmplt_ps(abs_r, _mm_set1_ps(TRIGRANGEMAX2F));
+    let all_in_range1 = _mm_movemask_ps(in_range1) == 0xF;
+
+    let (mut final_d, mut final_q) = (d, q);
+
+    if !all_in_range1 {
+        // 4-part Cody-Waite for medium range
+        let s = _mm_cvtepi32_ps(q);
+        let mut u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_AF), r);
+        u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_BF), u2);
+        u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_CF), u2);
+        u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_DF), u2);
+
+        final_d = _mm_or_ps(
+            _mm_and_ps(in_range1, d),
+            _mm_andnot_ps(in_range1, u2),
+        );
+
+        let in_range2 = _mm_cmplt_ps(abs_r, _mm_set1_ps(TRIGRANGEMAXF));
+        let all_in_range2 = _mm_movemask_ps(in_range2) == 0xF;
+
+        if !all_in_range2 {
+            // Payne-Hanek for very large args
+            let (dfi, q2_raw) = rempif_sse(r);
+            let q2_and = _mm_and_si128(q2_raw, _mm_set1_epi32(3));
+            let dfi_x_gt0 = _mm_cmpgt_ps(dfi.hi, _mm_setzero_ps());
+            let sel = _mm_castps_si128(dfi_x_gt0);
+            let mut q2 = _mm_add_epi32(
+                _mm_add_epi32(q2_and, q2_and),
+                _mm_or_si128(
+                    _mm_and_si128(sel, _mm_set1_epi32(2)),
+                    _mm_andnot_si128(sel, _mm_set1_epi32(1)),
+                ),
+            );
+            q2 = _mm_srai_epi32(q2, 2);
+
+            let odd = _mm_cmpeq_epi32(
+                _mm_and_si128(q2_raw, _mm_set1_epi32(1)),
+                _mm_set1_epi32(1),
+            );
+            let odd_f = _mm_castsi128_ps(odd);
+            let half_pi_hi = _mm_set1_ps(3.1415927410125732422 * -0.5);
+            let half_pi_lo = _mm_set1_ps(-8.7422776573475857731e-08 * -0.5);
+            let pi_adj = F2x4 {
+                hi: vmulsign_sse(half_pi_hi, dfi.hi),
+                lo: vmulsign_sse(half_pi_lo, dfi.hi),
+            };
+            let adj = df_add2_f2_f2_sse(dfi, pi_adj);
+            let t_hi = _mm_or_ps(_mm_and_ps(odd_f, adj.hi), _mm_andnot_ps(odd_f, dfi.hi));
+            let t_lo = _mm_or_ps(_mm_and_ps(odd_f, adj.lo), _mm_andnot_ps(odd_f, dfi.lo));
+            let mut u3 = _mm_add_ps(t_hi, t_lo);
+
+            let is_bad = _mm_or_ps(
+                _mm_cmpeq_ps(abs_r, _mm_set1_ps(f32::INFINITY)),
+                _mm_cmpunord_ps(r, r),
+            );
+            u3 = _mm_or_ps(u3, is_bad);
+
+            let in_range2_i = _mm_castps_si128(in_range2);
+            final_q = _mm_or_si128(
+                _mm_and_si128(in_range2_i, final_q),
+                _mm_andnot_si128(in_range2_i, q2),
+            );
+            final_d = _mm_or_ps(
+                _mm_and_ps(in_range2, final_d),
+                _mm_andnot_ps(in_range2, u3),
+            );
+        }
+    }
+
+    let s = _mm_mul_ps(final_d, final_d);
+
+    // Sign flip for odd quadrants (applied to d before polynomial)
+    let q_and_1 = _mm_cmpeq_epi32(
+        _mm_and_si128(final_q, _mm_set1_epi32(1)),
+        _mm_set1_epi32(1),
+    );
+    let sign_flip = _mm_and_ps(_mm_castsi128_ps(q_and_1), _mm_set1_ps(-0.0));
+    final_d = _mm_xor_ps(final_d, sign_flip);
+
+    // Polynomial (same coefficients as u10)
+    let mut u = _mm_set1_ps(2.6083159809786593541503e-06);
+    u = _mm_fmadd_ps(u, s, _mm_set1_ps(-0.0001981069071916863322258));
+    u = _mm_fmadd_ps(u, s, _mm_set1_ps(0.00833307858556509017944336));
+    u = _mm_fmadd_ps(u, s, _mm_set1_ps(-0.166666597127914428710938));
+
+    // u = s * (u * d) + d
+    u = _mm_add_ps(_mm_mul_ps(s, _mm_mul_ps(u, final_d)), final_d);
+
+    // Preserve -0.0
+    let is_neg_zero = visnegzero_sse(r);
+    u = _mm_or_ps(
+        _mm_and_ps(is_neg_zero, r),
+        _mm_andnot_ps(is_neg_zero, u),
+    );
+
+    u
+}
+
+/// SLEEF `xcosf` cosine for SSE4.1+FMA3 (≤ 3.5 ULP).
+unsafe fn cosf_u35_sse(d: __m128) -> __m128 {
+    let abs_mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFF_FFFF));
+    let r = d;
+
+    // Range reduction: q = 2*round(d/π - 0.5) + 1
+    let q = _mm_cvtps_epi32(_mm_sub_ps(
+        _mm_mul_ps(d, _mm_set1_ps(M_1_PI_F)),
+        _mm_set1_ps(0.5),
+    ));
+    let q = _mm_add_epi32(_mm_add_epi32(q, q), _mm_set1_epi32(1));
+    let u = _mm_cvtepi32_ps(q);
+
+    // 3-part Cody-Waite
+    let mut d = _mm_fmadd_ps(u, _mm_set1_ps(-PI_A2F * 0.5), d);
+    d = _mm_fmadd_ps(u, _mm_set1_ps(-PI_B2F * 0.5), d);
+    d = _mm_fmadd_ps(u, _mm_set1_ps(-PI_C2F * 0.5), d);
+
+    let abs_r = _mm_and_ps(r, abs_mask);
+    let in_range1 = _mm_cmplt_ps(abs_r, _mm_set1_ps(TRIGRANGEMAX2F));
+    let all_in_range1 = _mm_movemask_ps(in_range1) == 0xF;
+
+    let (mut final_d, mut final_q) = (d, q);
+
+    if !all_in_range1 {
+        let s = _mm_cvtepi32_ps(q);
+        let mut u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_AF * 0.5), r);
+        u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_BF * 0.5), u2);
+        u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_CF * 0.5), u2);
+        u2 = _mm_fmadd_ps(s, _mm_set1_ps(-PI_DF * 0.5), u2);
+
+        final_d = _mm_or_ps(
+            _mm_and_ps(in_range1, d),
+            _mm_andnot_ps(in_range1, u2),
+        );
+
+        let in_range2 = _mm_cmplt_ps(abs_r, _mm_set1_ps(TRIGRANGEMAXF));
+        let all_in_range2 = _mm_movemask_ps(in_range2) == 0xF;
+
+        if !all_in_range2 {
+            let (dfi, q2_raw) = rempif_sse(r);
+            let q2_and = _mm_and_si128(q2_raw, _mm_set1_epi32(3));
+            let dfi_x_gt0 = _mm_cmpgt_ps(dfi.hi, _mm_setzero_ps());
+            let sel = _mm_castps_si128(dfi_x_gt0);
+            let mut q2 = _mm_add_epi32(
+                _mm_add_epi32(q2_and, q2_and),
+                _mm_or_si128(
+                    _mm_and_si128(sel, _mm_set1_epi32(8)),
+                    _mm_andnot_si128(sel, _mm_set1_epi32(7)),
+                ),
+            );
+            q2 = _mm_srai_epi32(q2, 1);
+
+            let even = _mm_cmpeq_epi32(
+                _mm_and_si128(q2_raw, _mm_set1_epi32(1)),
+                _mm_setzero_si128(),
+            );
+            let even_f = _mm_castsi128_ps(even);
+            let y = _mm_or_ps(
+                _mm_and_ps(dfi_x_gt0, _mm_setzero_ps()),
+                _mm_andnot_ps(dfi_x_gt0, _mm_set1_ps(-1.0)),
+            );
+            let half_pi_hi = _mm_set1_ps(3.1415927410125732422 * -0.5);
+            let half_pi_lo = _mm_set1_ps(-8.7422776573475857731e-08 * -0.5);
+            let pi_adj = F2x4 {
+                hi: vmulsign_sse(half_pi_hi, y),
+                lo: vmulsign_sse(half_pi_lo, y),
+            };
+            let adj = df_add2_f2_f2_sse(dfi, pi_adj);
+            let t_hi = _mm_or_ps(_mm_and_ps(even_f, adj.hi), _mm_andnot_ps(even_f, dfi.hi));
+            let t_lo = _mm_or_ps(_mm_and_ps(even_f, adj.lo), _mm_andnot_ps(even_f, dfi.lo));
+            let mut u3 = _mm_add_ps(t_hi, t_lo);
+
+            let is_bad = _mm_or_ps(
+                _mm_cmpeq_ps(abs_r, _mm_set1_ps(f32::INFINITY)),
+                _mm_cmpunord_ps(r, r),
+            );
+            u3 = _mm_or_ps(u3, is_bad);
+
+            let in_range2_i = _mm_castps_si128(in_range2);
+            final_q = _mm_or_si128(
+                _mm_and_si128(in_range2_i, final_q),
+                _mm_andnot_si128(in_range2_i, q2),
+            );
+            final_d = _mm_or_ps(
+                _mm_and_ps(in_range2, final_d),
+                _mm_andnot_ps(in_range2, u3),
+            );
+        }
+    }
+
+    let s = _mm_mul_ps(final_d, final_d);
+
+    // Sign flip when (q & 2) == 0 (applied to d)
+    let q_and_2_is_0 = _mm_cmpeq_epi32(
+        _mm_and_si128(final_q, _mm_set1_epi32(2)),
+        _mm_setzero_si128(),
+    );
+    let sign_flip = _mm_and_ps(_mm_castsi128_ps(q_and_2_is_0), _mm_set1_ps(-0.0));
+    final_d = _mm_xor_ps(final_d, sign_flip);
+
+    let mut u = _mm_set1_ps(2.6083159809786593541503e-06);
+    u = _mm_fmadd_ps(u, s, _mm_set1_ps(-0.0001981069071916863322258));
+    u = _mm_fmadd_ps(u, s, _mm_set1_ps(0.00833307858556509017944336));
+    u = _mm_fmadd_ps(u, s, _mm_set1_ps(-0.166666597127914428710938));
+
+    u = _mm_add_ps(_mm_mul_ps(s, _mm_mul_ps(u, final_d)), final_d);
+
+    u
+}
+

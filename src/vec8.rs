@@ -29,13 +29,13 @@ impl Vec8 {
 
     /// Loads the array contents into an AVX register.
     #[inline(always)]
-    fn load(&self) -> __m256 {
+    pub(crate) fn load(&self) -> __m256 {
         unsafe { _mm256_load_ps(self.0.as_ptr()) }
     }
 
     /// Stores an AVX register into a new `Vec8`.
     #[inline(always)]
-    fn store(v: __m256) -> Self {
+    pub(crate) fn store(v: __m256) -> Self {
         let mut r = Vec8([0.0; 8]);
         unsafe { _mm256_store_ps(r.0.as_mut_ptr(), v) };
         r
@@ -53,44 +53,6 @@ impl Vec8 {
         unsafe { Self::store(_mm256_fmadd_ps(self.load(), a.load(), b.load())) }
     }
 
-    /// Sums all lanes, returning a scalar.
-    #[inline(always)]
-    pub fn sum(self) -> f32 {
-        unsafe {
-            let v = self.load();
-            let lo = _mm256_cvtps_pd(_mm256_castps256_ps128(v));
-            let hi = _mm256_cvtps_pd(_mm256_extractf128_ps(v, 1));
-            let sum4 = _mm256_add_pd(lo, hi);
-            let hi2 = _mm256_extractf128_pd(sum4, 1);
-            let lo2 = _mm256_castpd256_pd128(sum4);
-            let sum2 = _mm_add_pd(lo2, hi2);
-            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
-            let sum1 = _mm_add_sd(sum2, hi_elem);
-            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
-        }
-    }
-
-    /// Computes the dot product of two vectors, returning a scalar.
-    #[inline(always)]
-    pub fn dot(self, other: Self) -> f32 {
-        unsafe {
-            let a = self.load();
-            let b = other.load();
-            let a_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(a));
-            let a_hi = _mm256_cvtps_pd(_mm256_extractf128_ps(a, 1));
-            let b_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(b));
-            let b_hi = _mm256_cvtps_pd(_mm256_extractf128_ps(b, 1));
-            let prod_lo = _mm256_mul_pd(a_lo, b_lo);
-            let prod_hi = _mm256_mul_pd(a_hi, b_hi);
-            let sum4 = _mm256_add_pd(prod_lo, prod_hi);
-            let hi = _mm256_extractf128_pd(sum4, 1);
-            let lo = _mm256_castpd256_pd128(sum4);
-            let sum2 = _mm_add_pd(lo, hi);
-            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
-            let sum1 = _mm_add_sd(sum2, hi_elem);
-            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
-        }
-    }
 
     /// Returns the absolute value of each lane.
     #[inline(always)]
@@ -148,19 +110,85 @@ impl Vec8 {
         }
     }
 
-    /// Computes the sine of each lane (radians). SLEEF u10 precision (< 1 ULP).
-    pub fn sin(self) -> Self {
+}
+
+impl crate::precise::PreciseMath for Vec8 {
+    fn sin(self) -> Self {
         unsafe { Self::store(sinf_u10_avx2(self.load())) }
     }
-
-    /// Computes the cosine of each lane (radians). SLEEF u10 precision (< 1 ULP).
-    pub fn cos(self) -> Self {
+    fn cos(self) -> Self {
         unsafe { Self::store(cosf_u10_avx2(self.load())) }
     }
-
-    /// Computes e^x for each lane. SLEEF precision.
-    pub fn exp(self) -> Self {
+    fn exp(self) -> Self {
         unsafe { Self::store(expf_avx2(self.load())) }
+    }
+    fn sum(self) -> f32 {
+        unsafe {
+            let v = self.load();
+            let lo = _mm256_cvtps_pd(_mm256_castps256_ps128(v));
+            let hi = _mm256_cvtps_pd(_mm256_extractf128_ps(v, 1));
+            let sum4 = _mm256_add_pd(lo, hi);
+            let hi2 = _mm256_extractf128_pd(sum4, 1);
+            let lo2 = _mm256_castpd256_pd128(sum4);
+            let sum2 = _mm_add_pd(lo2, hi2);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
+        }
+    }
+    fn dot(self, other: Self) -> f32 {
+        unsafe {
+            let a = self.load();
+            let b = other.load();
+            let a_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(a));
+            let a_hi = _mm256_cvtps_pd(_mm256_extractf128_ps(a, 1));
+            let b_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(b));
+            let b_hi = _mm256_cvtps_pd(_mm256_extractf128_ps(b, 1));
+            let prod_lo = _mm256_mul_pd(a_lo, b_lo);
+            let prod_hi = _mm256_mul_pd(a_hi, b_hi);
+            let sum4 = _mm256_add_pd(prod_lo, prod_hi);
+            let hi = _mm256_extractf128_pd(sum4, 1);
+            let lo = _mm256_castpd256_pd128(sum4);
+            let sum2 = _mm_add_pd(lo, hi);
+            let hi_elem = _mm_unpackhi_pd(sum2, sum2);
+            let sum1 = _mm_add_sd(sum2, hi_elem);
+            _mm_cvtss_f32(_mm_cvtsd_ss(_mm_setzero_ps(), sum1))
+        }
+    }
+}
+
+impl crate::fast::FastMath for Vec8 {
+    fn sin(self) -> Self {
+        unsafe { Self::store(sinf_u35_avx2(self.load())) }
+    }
+    fn cos(self) -> Self {
+        unsafe { Self::store(cosf_u35_avx2(self.load())) }
+    }
+    fn sum(self) -> f32 {
+        unsafe {
+            let v = self.load();
+            let hi128 = _mm256_extractf128_ps(v, 1);
+            let lo128 = _mm256_castps256_ps128(v);
+            let sum4 = _mm_add_ps(lo128, hi128);
+            let shuf = _mm_movehdup_ps(sum4);
+            let sums = _mm_add_ps(sum4, shuf);
+            let shuf2 = _mm_movehl_ps(sums, sums);
+            let sums2 = _mm_add_ss(sums, shuf2);
+            _mm_cvtss_f32(sums2)
+        }
+    }
+    fn dot(self, other: Self) -> f32 {
+        unsafe {
+            let prod = _mm256_mul_ps(self.load(), other.load());
+            let hi128 = _mm256_extractf128_ps(prod, 1);
+            let lo128 = _mm256_castps256_ps128(prod);
+            let sum4 = _mm_add_ps(lo128, hi128);
+            let shuf = _mm_movehdup_ps(sum4);
+            let sums = _mm_add_ps(sum4, shuf);
+            let shuf2 = _mm_movehl_ps(sums, sums);
+            let sums2 = _mm_add_ss(sums, shuf2);
+            _mm_cvtss_f32(sums2)
+        }
     }
 }
 
@@ -726,3 +754,240 @@ unsafe fn expf_avx2(d: __m256) -> __m256 {
 
     u
 }
+
+// ---------------------------------------------------------------------------
+// SLEEF u35 (≤ 3.5 ULP) transcendental implementations (AVX2 + FMA3)
+// ---------------------------------------------------------------------------
+
+/// SLEEF `xsinf` sine for AVX2+FMA3 (≤ 3.5 ULP).
+unsafe fn sinf_u35_avx2(d: __m256) -> __m256 {
+    let abs_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFF_FFFF));
+    let r = d;
+
+    let q = _mm256_cvtps_epi32(_mm256_mul_ps(d, _mm256_set1_ps(M_1_PI_F)));
+    let u = _mm256_cvtepi32_ps(q);
+
+    let mut d = _mm256_fmadd_ps(u, _mm256_set1_ps(-PI_A2F), d);
+    d = _mm256_fmadd_ps(u, _mm256_set1_ps(-PI_B2F), d);
+    d = _mm256_fmadd_ps(u, _mm256_set1_ps(-PI_C2F), d);
+
+    let abs_r = _mm256_and_ps(r, abs_mask);
+    let in_range1 = _mm256_cmp_ps(abs_r, _mm256_set1_ps(TRIGRANGEMAX2F), _CMP_LT_OQ);
+    let all_in_range1 = _mm256_movemask_ps(in_range1) == 0xFF;
+
+    let (mut final_d, mut final_q) = (d, q);
+
+    if !all_in_range1 {
+        let s = _mm256_cvtepi32_ps(q);
+        let mut u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_AF), r);
+        u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_BF), u2);
+        u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_CF), u2);
+        u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_DF), u2);
+
+        final_d = _mm256_or_ps(
+            _mm256_and_ps(in_range1, d),
+            _mm256_andnot_ps(in_range1, u2),
+        );
+
+        let in_range2 = _mm256_cmp_ps(abs_r, _mm256_set1_ps(TRIGRANGEMAXF), _CMP_LT_OQ);
+        let all_in_range2 = _mm256_movemask_ps(in_range2) == 0xFF;
+
+        if !all_in_range2 {
+            let (dfi, q2_raw) = rempif_avx(r);
+            let q2_and = _mm256_and_si256(q2_raw, _mm256_set1_epi32(3));
+            let dfi_x_gt0 = _mm256_cmp_ps(dfi.hi, _mm256_setzero_ps(), _CMP_GT_OQ);
+            let sel = _mm256_castps_si256(dfi_x_gt0);
+            let mut q2 = _mm256_add_epi32(
+                _mm256_add_epi32(q2_and, q2_and),
+                _mm256_or_si256(
+                    _mm256_and_si256(sel, _mm256_set1_epi32(2)),
+                    _mm256_andnot_si256(sel, _mm256_set1_epi32(1)),
+                ),
+            );
+            q2 = _mm256_srai_epi32(q2, 2);
+
+            let odd = _mm256_cmpeq_epi32(
+                _mm256_and_si256(q2_raw, _mm256_set1_epi32(1)),
+                _mm256_set1_epi32(1),
+            );
+            let odd_f = _mm256_castsi256_ps(odd);
+            let half_pi_hi = _mm256_set1_ps(3.1415927410125732422 * -0.5);
+            let half_pi_lo = _mm256_set1_ps(-8.7422776573475857731e-08 * -0.5);
+            let pi_adj = F2x8 {
+                hi: vmulsign_avx(half_pi_hi, dfi.hi),
+                lo: vmulsign_avx(half_pi_lo, dfi.hi),
+            };
+            let adj = df_add2_f2_f2_avx(dfi, pi_adj);
+            let t_hi = _mm256_or_ps(
+                _mm256_and_ps(odd_f, adj.hi),
+                _mm256_andnot_ps(odd_f, dfi.hi),
+            );
+            let t_lo = _mm256_or_ps(
+                _mm256_and_ps(odd_f, adj.lo),
+                _mm256_andnot_ps(odd_f, dfi.lo),
+            );
+            let mut u3 = _mm256_add_ps(t_hi, t_lo);
+
+            let is_bad = _mm256_or_ps(
+                _mm256_cmp_ps(abs_r, _mm256_set1_ps(f32::INFINITY), _CMP_EQ_OQ),
+                _mm256_cmp_ps(r, r, _CMP_UNORD_Q),
+            );
+            u3 = _mm256_or_ps(u3, is_bad);
+
+            let in_range2_i = _mm256_castps_si256(in_range2);
+            final_q = _mm256_or_si256(
+                _mm256_and_si256(in_range2_i, final_q),
+                _mm256_andnot_si256(in_range2_i, q2),
+            );
+            final_d = _mm256_or_ps(
+                _mm256_and_ps(in_range2, final_d),
+                _mm256_andnot_ps(in_range2, u3),
+            );
+        }
+    }
+
+    let s = _mm256_mul_ps(final_d, final_d);
+
+    let q_and_1 = _mm256_cmpeq_epi32(
+        _mm256_and_si256(final_q, _mm256_set1_epi32(1)),
+        _mm256_set1_epi32(1),
+    );
+    let sign_flip = _mm256_and_ps(_mm256_castsi256_ps(q_and_1), _mm256_set1_ps(-0.0));
+    final_d = _mm256_xor_ps(final_d, sign_flip);
+
+    let mut u = _mm256_set1_ps(2.6083159809786593541503e-06);
+    u = _mm256_fmadd_ps(u, s, _mm256_set1_ps(-0.0001981069071916863322258));
+    u = _mm256_fmadd_ps(u, s, _mm256_set1_ps(0.00833307858556509017944336));
+    u = _mm256_fmadd_ps(u, s, _mm256_set1_ps(-0.166666597127914428710938));
+
+    u = _mm256_add_ps(
+        _mm256_mul_ps(s, _mm256_mul_ps(u, final_d)),
+        final_d,
+    );
+
+    let is_neg_zero = visnegzero_avx(r);
+    u = _mm256_or_ps(
+        _mm256_and_ps(is_neg_zero, r),
+        _mm256_andnot_ps(is_neg_zero, u),
+    );
+
+    u
+}
+
+/// SLEEF `xcosf` cosine for AVX2+FMA3 (≤ 3.5 ULP).
+unsafe fn cosf_u35_avx2(d: __m256) -> __m256 {
+    let abs_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFF_FFFF));
+    let r = d;
+
+    let q = _mm256_cvtps_epi32(_mm256_sub_ps(
+        _mm256_mul_ps(d, _mm256_set1_ps(M_1_PI_F)),
+        _mm256_set1_ps(0.5),
+    ));
+    let q = _mm256_add_epi32(_mm256_add_epi32(q, q), _mm256_set1_epi32(1));
+    let u = _mm256_cvtepi32_ps(q);
+
+    let mut d = _mm256_fmadd_ps(u, _mm256_set1_ps(-PI_A2F * 0.5), d);
+    d = _mm256_fmadd_ps(u, _mm256_set1_ps(-PI_B2F * 0.5), d);
+    d = _mm256_fmadd_ps(u, _mm256_set1_ps(-PI_C2F * 0.5), d);
+
+    let abs_r = _mm256_and_ps(r, abs_mask);
+    let in_range1 = _mm256_cmp_ps(abs_r, _mm256_set1_ps(TRIGRANGEMAX2F), _CMP_LT_OQ);
+    let all_in_range1 = _mm256_movemask_ps(in_range1) == 0xFF;
+
+    let (mut final_d, mut final_q) = (d, q);
+
+    if !all_in_range1 {
+        let s = _mm256_cvtepi32_ps(q);
+        let mut u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_AF * 0.5), r);
+        u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_BF * 0.5), u2);
+        u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_CF * 0.5), u2);
+        u2 = _mm256_fmadd_ps(s, _mm256_set1_ps(-PI_DF * 0.5), u2);
+
+        final_d = _mm256_or_ps(
+            _mm256_and_ps(in_range1, d),
+            _mm256_andnot_ps(in_range1, u2),
+        );
+
+        let in_range2 = _mm256_cmp_ps(abs_r, _mm256_set1_ps(TRIGRANGEMAXF), _CMP_LT_OQ);
+        let all_in_range2 = _mm256_movemask_ps(in_range2) == 0xFF;
+
+        if !all_in_range2 {
+            let (dfi, q2_raw) = rempif_avx(r);
+            let q2_and = _mm256_and_si256(q2_raw, _mm256_set1_epi32(3));
+            let dfi_x_gt0 = _mm256_cmp_ps(dfi.hi, _mm256_setzero_ps(), _CMP_GT_OQ);
+            let sel = _mm256_castps_si256(dfi_x_gt0);
+            let mut q2 = _mm256_add_epi32(
+                _mm256_add_epi32(q2_and, q2_and),
+                _mm256_or_si256(
+                    _mm256_and_si256(sel, _mm256_set1_epi32(8)),
+                    _mm256_andnot_si256(sel, _mm256_set1_epi32(7)),
+                ),
+            );
+            q2 = _mm256_srai_epi32(q2, 1);
+
+            let even = _mm256_cmpeq_epi32(
+                _mm256_and_si256(q2_raw, _mm256_set1_epi32(1)),
+                _mm256_setzero_si256(),
+            );
+            let even_f = _mm256_castsi256_ps(even);
+            let y = _mm256_or_ps(
+                _mm256_and_ps(dfi_x_gt0, _mm256_setzero_ps()),
+                _mm256_andnot_ps(dfi_x_gt0, _mm256_set1_ps(-1.0)),
+            );
+            let half_pi_hi = _mm256_set1_ps(3.1415927410125732422 * -0.5);
+            let half_pi_lo = _mm256_set1_ps(-8.7422776573475857731e-08 * -0.5);
+            let pi_adj = F2x8 {
+                hi: vmulsign_avx(half_pi_hi, y),
+                lo: vmulsign_avx(half_pi_lo, y),
+            };
+            let adj = df_add2_f2_f2_avx(dfi, pi_adj);
+            let t_hi = _mm256_or_ps(
+                _mm256_and_ps(even_f, adj.hi),
+                _mm256_andnot_ps(even_f, dfi.hi),
+            );
+            let t_lo = _mm256_or_ps(
+                _mm256_and_ps(even_f, adj.lo),
+                _mm256_andnot_ps(even_f, dfi.lo),
+            );
+            let mut u3 = _mm256_add_ps(t_hi, t_lo);
+
+            let is_bad = _mm256_or_ps(
+                _mm256_cmp_ps(abs_r, _mm256_set1_ps(f32::INFINITY), _CMP_EQ_OQ),
+                _mm256_cmp_ps(r, r, _CMP_UNORD_Q),
+            );
+            u3 = _mm256_or_ps(u3, is_bad);
+
+            let in_range2_i = _mm256_castps_si256(in_range2);
+            final_q = _mm256_or_si256(
+                _mm256_and_si256(in_range2_i, final_q),
+                _mm256_andnot_si256(in_range2_i, q2),
+            );
+            final_d = _mm256_or_ps(
+                _mm256_and_ps(in_range2, final_d),
+                _mm256_andnot_ps(in_range2, u3),
+            );
+        }
+    }
+
+    let s = _mm256_mul_ps(final_d, final_d);
+
+    let q_and_2_is_0 = _mm256_cmpeq_epi32(
+        _mm256_and_si256(final_q, _mm256_set1_epi32(2)),
+        _mm256_setzero_si256(),
+    );
+    let sign_flip = _mm256_and_ps(_mm256_castsi256_ps(q_and_2_is_0), _mm256_set1_ps(-0.0));
+    final_d = _mm256_xor_ps(final_d, sign_flip);
+
+    let mut u = _mm256_set1_ps(2.6083159809786593541503e-06);
+    u = _mm256_fmadd_ps(u, s, _mm256_set1_ps(-0.0001981069071916863322258));
+    u = _mm256_fmadd_ps(u, s, _mm256_set1_ps(0.00833307858556509017944336));
+    u = _mm256_fmadd_ps(u, s, _mm256_set1_ps(-0.166666597127914428710938));
+
+    u = _mm256_add_ps(
+        _mm256_mul_ps(s, _mm256_mul_ps(u, final_d)),
+        final_d,
+    );
+
+    u
+}
+

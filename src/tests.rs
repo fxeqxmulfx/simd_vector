@@ -1,4 +1,5 @@
 use super::*;
+use super::precise::PreciseMath;
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, PI};
 
 fn ulp_error(computed: f32, expected: f32) -> f32 {
@@ -4441,3 +4442,1150 @@ fn test_vec8_floor_ceil_round_idempotent() {
     assert_eq!(ce.ceil(), ce, "ceil idempotent");
     assert_eq!(ro.round(), ro, "round idempotent");
 }
+
+// ============ Sollya-verified correctly-rounded reference tests ============
+//
+// Reference values computed with Sollya 8.0 at 200-bit precision,
+// rounded to single precision (SG) with round-to-nearest-even (RN).
+// These tests verify that our SIMD transcendentals match the correctly-rounded
+// result to within the documented ULP error bound.
+
+// --- sin: Sollya-verified (Vec4) ---
+
+#[test]
+fn test_vec4_sin_sollya_basic() {
+    // Sollya: round(sin(single(x)), SG, RN)
+    let cases: &[(f32, f32)] = &[
+        (0.1, 9.9833421409130096435546875e-2),
+        (0.2, 0.19866932928562164306640625),
+        (0.3, 0.2955202162265777587890625),
+        (0.5, 0.47942554950714111328125),
+        (0.7, 0.644217669963836669921875),
+        (1.0, 0.8414709568023681640625),
+        (1.5, 0.997494995594024658203125),
+        (2.0, 0.909297406673431396484375),
+        (2.5, 0.598472118377685546875),
+        (3.0, 0.14112000167369842529296875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_sin_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.1, -9.9833421409130096435546875e-2),
+        (-0.5, -0.47942554950714111328125),
+        (-1.0, -0.8414709568023681640625),
+        (-2.0, -0.909297406673431396484375),
+        (-3.0, -0.14112000167369842529296875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_sin_sollya_large() {
+    // Large arguments stress range reduction
+    let cases: &[(f32, f32)] = &[
+        (10.0, -0.544021129608154296875),
+        (100.0, -0.50636565685272216796875),
+        (1000.0, 0.826879560947418212890625),
+        (10000.0, -0.3056143820285797119140625),
+        (100000.0, 3.57487984001636505126953125e-2),
+        (1000000.0, -0.3499934971332550048828125),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_sin_sollya_small() {
+    // Very small inputs: sin(x) ≈ x
+    let cases: &[(f32, f32)] = &[
+        (1e-5, 1e-5),
+        (1e-4, 1e-4),
+        (0.001, 9.9999993108212947845458984375e-4),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_sin_sollya_near_pi_multiples() {
+    // Inputs near multiples of pi: hardest cases for range reduction
+    // Values from rational approximations to pi (355/113, 22/7, etc.)
+    let cases: &[(f32, f32)] = &[
+        // 355/113 ≈ pi to 7 digits
+        (3.14159297943115234375, -3.258413698858930729329586029052734375e-7),
+        // near 2*pi
+        (6.283185482025146484375, 1.74845553146951715461909770965576171875e-7),
+        (6.2831859588623046875, 6.51682739771786145865917205810546875e-7),
+        // near 3*pi
+        (9.424777984619140625, -2.3849761277006109594367444515228271484375e-8),
+        (9.42477893829345703125, -9.775241096576792187988758087158203125e-7),
+        // near 4*pi
+        (12.56637096405029296875, 3.4969110629390343092381954193115234375e-7),
+        // near 5*pi
+        (15.7079639434814453125, -6.7553247617979650385677814483642578125e-7),
+        // 22/7 ≈ pi
+        (3.142857074737548828125, -1.2644208036363124847412109375e-3),
+        // 333/106 ≈ pi
+        (3.141509532928466796875, 8.31206634757108986377716064453125e-5),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_sin_sollya_near_pi_high_precision() {
+    // 103993/33102 convergent of pi — very close to pi
+    let v = Vec4::splat(3.1415927410125732421875);
+    let r = v.sin();
+    let expected: f32 = -8.74227765734758577309548854827880859375e-8;
+    for i in 0..4 {
+        assert_ulp(r[i], expected, 1.0, &format!("sin(~pi) lane {i}"));
+    }
+}
+
+// --- cos: Sollya-verified (Vec4) ---
+
+#[test]
+fn test_vec4_cos_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.1, 0.995004177093505859375),
+        (0.2, 0.980066597461700439453125),
+        (0.3, 0.955336511135101318359375),
+        (0.5, 0.877582550048828125),
+        (0.7, 0.764842212200164794921875),
+        (1.0, 0.540302276611328125),
+        (1.5, 7.073719799518585205078125e-2),
+        (2.0, -0.4161468446254730224609375),
+        (2.5, -0.801143586635589599609375),
+        (3.0, -0.98999249935150146484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_cos_sollya_negative() {
+    // cos is even: cos(-x) == cos(x)
+    let cases: &[(f32, f32)] = &[
+        (-0.1, 0.995004177093505859375),
+        (-0.5, 0.877582550048828125),
+        (-1.0, 0.540302276611328125),
+        (-2.0, -0.4161468446254730224609375),
+        (-3.0, -0.98999249935150146484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_cos_sollya_large() {
+    let cases: &[(f32, f32)] = &[
+        (10.0, -0.8390715122222900390625),
+        (100.0, 0.86231887340545654296875),
+        (1000.0, 0.562379062175750732421875),
+        (10000.0, -0.9521553516387939453125),
+        (100000.0, -0.9993607997894287109375),
+        (1000000.0, 0.936752140522003173828125),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_cos_sollya_small() {
+    // Very small inputs: cos(x) ≈ 1
+    let cases: &[(f32, f32)] = &[
+        (1e-5, 1.0),
+        (1e-4, 1.0),
+        (0.001, 0.999999523162841796875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_cos_sollya_near_pi_multiples() {
+    // Near multiples of pi: cos ≈ ±1
+    let cases: &[(f32, f32)] = &[
+        (3.14159297943115234375, -1.0),  // ~pi
+        (6.2831859588623046875, 1.0),     // ~2*pi
+        (3.141509532928466796875, -1.0),  // 333/106
+        (3.1415927410125732421875, -1.0), // 103993/33102
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_cos_sollya_near_half_pi() {
+    // Near odd multiples of pi/2: cos ≈ 0 (hardest cases)
+    let cases: &[(f32, f32)] = &[
+        (1.57079637050628662109375, -4.371138828673792886547744274139404296875e-8),
+        (4.7123889923095703125, 1.19248806385030547971837222576141357421875e-8),
+        (7.85398197174072265625, -3.37766238089898251928389072418212890625e-7),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+// --- exp: Sollya-verified (Vec4) ---
+
+#[test]
+fn test_vec4_exp_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.0, 1.0),
+        (0.1, 1.1051709651947021484375),
+        (0.5, 1.648721218109130859375),
+        (1.0, 2.71828174591064453125),
+        (2.0, 7.38905620574951171875),
+        (5.0, 148.4131622314453125),
+        (10.0, 22026.46484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.1, 0.904837429523468017578125),
+        (-0.5, 0.606530666351318359375),
+        (-1.0, 0.367879450321197509765625),
+        (-2.0, 0.13533528149127960205078125),
+        (-5.0, 6.7379469983279705047607421875e-3),
+        (-10.0, 4.53999309684149920940399169921875e-5),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_sollya_large_positive() {
+    let cases: &[(f32, f32)] = &[
+        (20.0, 485165184.0),
+        (50.0, 5184705457665546911744.0),
+        (80.0, 55406224846767593604562923875729408.0),
+        (88.0, 165163626613613066163770348909654704128.0),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_sollya_large_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-20.0, 2.0611536921677497957716695964336395263671875e-9),
+        (-50.0, 1.928749893353738456166901302804529347301176755991036770865321e-22),
+        (-80.0, 1.804851328584840598743358502560740630639436445609993635206495e-35),
+        (-88.0, 6.05460148519595171687672580035740694775167801436139670715694e-39),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_sollya_small() {
+    // exp(x) ≈ 1+x for small x
+    let cases: &[(f32, f32)] = &[
+        (0.001, 1.00100052356719970703125),
+        (0.01, 1.01005017757415771484375),
+        (0.0001, 1.00010001659393310546875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_sollya_ln_values() {
+    // exp(ln(n)) should give n exactly when ln(n) is a f32
+    let cases: &[(f32, f32)] = &[
+        (0.693147182464599609375, 2.0),   // ln(2)
+        (1.098612308502197265625, 3.0),   // ln(3)
+        (2.302585124969482421875, 10.0),  // ln(10)
+        (4.60517024993896484375, 100.00000762939453125), // ln(100)
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_sollya_near_overflow() {
+    // Near the f32 overflow boundary for exp
+    let cases: &[(f32, f32)] = &[
+        (88.7, 332597686440668503966467777075517325312.0),
+        (88.72, 339318060038742448444738459316625866752.0),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+// --- sin: Sollya-verified (Vec8) ---
+
+#[test]
+fn test_vec8_sin_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.1, 9.9833421409130096435546875e-2),
+        (0.2, 0.19866932928562164306640625),
+        (0.3, 0.2955202162265777587890625),
+        (0.5, 0.47942554950714111328125),
+        (0.7, 0.644217669963836669921875),
+        (1.0, 0.8414709568023681640625),
+        (1.5, 0.997494995594024658203125),
+        (2.0, 0.909297406673431396484375),
+        (2.5, 0.598472118377685546875),
+        (3.0, 0.14112000167369842529296875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_sin_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.1, -9.9833421409130096435546875e-2),
+        (-0.5, -0.47942554950714111328125),
+        (-1.0, -0.8414709568023681640625),
+        (-2.0, -0.909297406673431396484375),
+        (-3.0, -0.14112000167369842529296875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_sin_sollya_large() {
+    let cases: &[(f32, f32)] = &[
+        (10.0, -0.544021129608154296875),
+        (100.0, -0.50636565685272216796875),
+        (1000.0, 0.826879560947418212890625),
+        (10000.0, -0.3056143820285797119140625),
+        (100000.0, 3.57487984001636505126953125e-2),
+        (1000000.0, -0.3499934971332550048828125),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_sin_sollya_small() {
+    let cases: &[(f32, f32)] = &[
+        (1e-5, 1e-5),
+        (1e-4, 1e-4),
+        (0.001, 9.9999993108212947845458984375e-4),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_sin_sollya_near_pi_multiples() {
+    let cases: &[(f32, f32)] = &[
+        (3.14159297943115234375, -3.258413698858930729329586029052734375e-7),
+        (6.283185482025146484375, 1.74845553146951715461909770965576171875e-7),
+        (6.2831859588623046875, 6.51682739771786145865917205810546875e-7),
+        (9.424777984619140625, -2.3849761277006109594367444515228271484375e-8),
+        (9.42477893829345703125, -9.775241096576792187988758087158203125e-7),
+        (12.56637096405029296875, 3.4969110629390343092381954193115234375e-7),
+        (15.7079639434814453125, -6.7553247617979650385677814483642578125e-7),
+        (3.142857074737548828125, -1.2644208036363124847412109375e-3),
+        (3.141509532928466796875, 8.31206634757108986377716064453125e-5),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_sin_sollya_near_pi_high_precision() {
+    let v = Vec8::splat(3.1415927410125732421875);
+    let r = v.sin();
+    let expected: f32 = -8.74227765734758577309548854827880859375e-8;
+    for i in 0..8 {
+        assert_ulp(r[i], expected, 1.0, &format!("sin(~pi) lane {i}"));
+    }
+}
+
+// --- cos: Sollya-verified (Vec8) ---
+
+#[test]
+fn test_vec8_cos_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.1, 0.995004177093505859375),
+        (0.2, 0.980066597461700439453125),
+        (0.3, 0.955336511135101318359375),
+        (0.5, 0.877582550048828125),
+        (0.7, 0.764842212200164794921875),
+        (1.0, 0.540302276611328125),
+        (1.5, 7.073719799518585205078125e-2),
+        (2.0, -0.4161468446254730224609375),
+        (2.5, -0.801143586635589599609375),
+        (3.0, -0.98999249935150146484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_cos_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.1, 0.995004177093505859375),
+        (-0.5, 0.877582550048828125),
+        (-1.0, 0.540302276611328125),
+        (-2.0, -0.4161468446254730224609375),
+        (-3.0, -0.98999249935150146484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_cos_sollya_large() {
+    let cases: &[(f32, f32)] = &[
+        (10.0, -0.8390715122222900390625),
+        (100.0, 0.86231887340545654296875),
+        (1000.0, 0.562379062175750732421875),
+        (10000.0, -0.9521553516387939453125),
+        (100000.0, -0.9993607997894287109375),
+        (1000000.0, 0.936752140522003173828125),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_cos_sollya_small() {
+    let cases: &[(f32, f32)] = &[
+        (1e-5, 1.0),
+        (1e-4, 1.0),
+        (0.001, 0.999999523162841796875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_cos_sollya_near_pi_multiples() {
+    let cases: &[(f32, f32)] = &[
+        (3.14159297943115234375, -1.0),
+        (6.2831859588623046875, 1.0),
+        (3.141509532928466796875, -1.0),
+        (3.1415927410125732421875, -1.0),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_cos_sollya_near_half_pi() {
+    let cases: &[(f32, f32)] = &[
+        (1.57079637050628662109375, -4.371138828673792886547744274139404296875e-8),
+        (4.7123889923095703125, 1.19248806385030547971837222576141357421875e-8),
+        (7.85398197174072265625, -3.37766238089898251928389072418212890625e-7),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos({input}) lane {i}"));
+        }
+    }
+}
+
+// --- exp: Sollya-verified (Vec8) ---
+
+#[test]
+fn test_vec8_exp_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.0, 1.0),
+        (0.1, 1.1051709651947021484375),
+        (0.5, 1.648721218109130859375),
+        (1.0, 2.71828174591064453125),
+        (2.0, 7.38905620574951171875),
+        (5.0, 148.4131622314453125),
+        (10.0, 22026.46484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.1, 0.904837429523468017578125),
+        (-0.5, 0.606530666351318359375),
+        (-1.0, 0.367879450321197509765625),
+        (-2.0, 0.13533528149127960205078125),
+        (-5.0, 6.7379469983279705047607421875e-3),
+        (-10.0, 4.53999309684149920940399169921875e-5),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_sollya_large_positive() {
+    let cases: &[(f32, f32)] = &[
+        (20.0, 485165184.0),
+        (50.0, 5184705457665546911744.0),
+        (80.0, 55406224846767593604562923875729408.0),
+        (88.0, 165163626613613066163770348909654704128.0),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_sollya_large_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-20.0, 2.0611536921677497957716695964336395263671875e-9),
+        (-50.0, 1.928749893353738456166901302804529347301176755991036770865321e-22),
+        (-80.0, 1.804851328584840598743358502560740630639436445609993635206495e-35),
+        (-88.0, 6.05460148519595171687672580035740694775167801436139670715694e-39),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_sollya_small() {
+    let cases: &[(f32, f32)] = &[
+        (0.001, 1.00100052356719970703125),
+        (0.01, 1.01005017757415771484375),
+        (0.0001, 1.00010001659393310546875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_sollya_ln_values() {
+    let cases: &[(f32, f32)] = &[
+        (0.693147182464599609375, 2.0),
+        (1.098612308502197265625, 3.0),
+        (2.302585124969482421875, 10.0),
+        (4.60517024993896484375, 100.00000762939453125),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_sollya_near_overflow() {
+    let cases: &[(f32, f32)] = &[
+        (88.7, 332597686440668503966467777075517325312.0),
+        (88.72, 339318060038742448444738459316625866752.0),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp({input}) lane {i}"));
+        }
+    }
+}
+
+// --- Mixed-lane Sollya tests (different values per lane) ---
+
+#[test]
+fn test_vec4_sin_sollya_mixed_lanes() {
+    // Each lane has a different input, all verified against Sollya
+    let v = Vec4([0.1, 1.0, 3.0, 10.0]);
+    let r = v.sin();
+    let expected = [
+        9.9833421409130096435546875e-2,
+        0.8414709568023681640625,
+        0.14112000167369842529296875,
+        -0.544021129608154296875,
+    ];
+    for i in 0..4 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("sin mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec4_cos_sollya_mixed_lanes() {
+    let v = Vec4([0.1, 1.0, 3.0, 10.0]);
+    let r = v.cos();
+    let expected = [
+        0.995004177093505859375,
+        0.540302276611328125,
+        -0.98999249935150146484375,
+        -0.8390715122222900390625,
+    ];
+    for i in 0..4 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("cos mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec4_exp_sollya_mixed_lanes() {
+    let v = Vec4([0.0, 1.0, -1.0, 10.0]);
+    let r = v.exp();
+    let expected = [
+        1.0,
+        2.71828174591064453125,
+        0.367879450321197509765625,
+        22026.46484375,
+    ];
+    for i in 0..4 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("exp mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec8_sin_sollya_mixed_lanes() {
+    let v = Vec8([0.1, 0.5, 1.0, 2.0, 3.0, 10.0, 100.0, 1000.0]);
+    let r = v.sin();
+    let expected = [
+        9.9833421409130096435546875e-2,
+        0.47942554950714111328125,
+        0.8414709568023681640625,
+        0.909297406673431396484375,
+        0.14112000167369842529296875,
+        -0.544021129608154296875,
+        -0.50636565685272216796875,
+        0.826879560947418212890625,
+    ];
+    for i in 0..8 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("sin mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec8_cos_sollya_mixed_lanes() {
+    let v = Vec8([0.1, 0.5, 1.0, 2.0, 3.0, 10.0, 100.0, 1000.0]);
+    let r = v.cos();
+    let expected = [
+        0.995004177093505859375,
+        0.877582550048828125,
+        0.540302276611328125,
+        -0.4161468446254730224609375,
+        -0.98999249935150146484375,
+        -0.8390715122222900390625,
+        0.86231887340545654296875,
+        0.562379062175750732421875,
+    ];
+    for i in 0..8 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("cos mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec8_exp_sollya_mixed_lanes() {
+    let v = Vec8([0.0, 0.1, 0.5, 1.0, -1.0, 2.0, 5.0, 10.0]);
+    let r = v.exp();
+    let expected = [
+        1.0,
+        1.1051709651947021484375,
+        1.648721218109130859375,
+        2.71828174591064453125,
+        0.367879450321197509765625,
+        7.38905620574951171875,
+        148.4131622314453125,
+        22026.46484375,
+    ];
+    for i in 0..8 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("exp mixed lane {i}"));
+    }
+}
+
+// ============ Sollya-verified fast (u35, ≤ 3.5 ULP) reference tests ============
+//
+// Reference values computed with Sollya 8.0 at 200-bit precision.
+// These tests use the 3.5 ULP bound for the fast path.
+// For |x| >= 30 (sin/cos), the fast functions fall back to the precise u10 path.
+
+mod fast_tests {
+    use super::{assert_ulp, Vec4, Vec8};
+    use crate::fast::FastMath;
+
+// --- sin: Sollya-verified fast (Vec4) ---
+
+#[test]
+fn test_vec4_sin_fast_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.1, 9.9833421409130096435546875e-2),
+        (0.5, 0.47942554950714111328125),
+        (1.0, 0.8414709568023681640625),
+        (2.0, 0.909297406673431396484375),
+        (3.0, 0.14112000167369842529296875),
+        (5.0, -0.95892429351806640625),
+        (7.0, 0.65698659420013427734375),
+        (10.0, -0.544021129608154296875),
+        (15.0, 0.6502878665924072265625),
+        (20.0, 0.912945270538330078125),
+        (25.0, -0.13235175609588623046875),
+        (29.0, -0.663633882999420166015625),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 3.5, &format!("sin_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_sin_fast_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.5, -0.47942554950714111328125),
+        (-1.0, -0.8414709568023681640625),
+        (-5.0, 0.95892429351806640625),
+        (-15.0, -0.6502878665924072265625),
+        (-29.0, 0.663633882999420166015625),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 3.5, &format!("sin_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_sin_fast_sollya_fallback() {
+    // |x| >= 30: falls back to precise path (≤ 1.0 ULP)
+    let cases: &[(f32, f32)] = &[
+        (30.0, -0.9880316257476806640625),
+        (100.0, -0.50636565685272216796875),
+        (1000.0, 0.826879560947418212890625),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.sin();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin_fast fallback({input}) lane {i}"));
+        }
+    }
+}
+
+// --- cos_fast: Sollya-verified (Vec4) ---
+
+#[test]
+fn test_vec4_cos_fast_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.1, 0.995004177093505859375),
+        (0.5, 0.877582550048828125),
+        (1.0, 0.540302276611328125),
+        (2.0, -0.4161468446254730224609375),
+        (3.0, -0.98999249935150146484375),
+        (5.0, 0.28366219997406005859375),
+        (7.0, 0.753902256488800048828125),
+        (10.0, -0.8390715122222900390625),
+        (15.0, -0.759687900543212890625),
+        (20.0, 0.408082067966461181640625),
+        (25.0, 0.991202831268310546875),
+        (29.0, -0.748057544231414794921875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 3.5, &format!("cos_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_cos_fast_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.5, 0.877582550048828125),
+        (-1.0, 0.540302276611328125),
+        (-5.0, 0.28366219997406005859375),
+        (-15.0, -0.759687900543212890625),
+        (-29.0, -0.748057544231414794921875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 3.5, &format!("cos_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_cos_fast_sollya_fallback() {
+    let cases: &[(f32, f32)] = &[
+        (30.0, 0.15425145626068115234375),
+        (100.0, 0.86231887340545654296875),
+        (1000.0, 0.562379062175750732421875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.cos();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos_fast fallback({input}) lane {i}"));
+        }
+    }
+}
+
+// --- sin_fast: Sollya-verified (Vec8) ---
+
+#[test]
+fn test_vec8_sin_fast_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.1, 9.9833421409130096435546875e-2),
+        (0.5, 0.47942554950714111328125),
+        (1.0, 0.8414709568023681640625),
+        (2.0, 0.909297406673431396484375),
+        (3.0, 0.14112000167369842529296875),
+        (5.0, -0.95892429351806640625),
+        (7.0, 0.65698659420013427734375),
+        (10.0, -0.544021129608154296875),
+        (15.0, 0.6502878665924072265625),
+        (20.0, 0.912945270538330078125),
+        (25.0, -0.13235175609588623046875),
+        (29.0, -0.663633882999420166015625),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 3.5, &format!("sin_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_sin_fast_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.5, -0.47942554950714111328125),
+        (-1.0, -0.8414709568023681640625),
+        (-5.0, 0.95892429351806640625),
+        (-15.0, -0.6502878665924072265625),
+        (-29.0, 0.663633882999420166015625),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 3.5, &format!("sin_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_sin_fast_sollya_fallback() {
+    let cases: &[(f32, f32)] = &[
+        (30.0, -0.9880316257476806640625),
+        (100.0, -0.50636565685272216796875),
+        (1000.0, 0.826879560947418212890625),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.sin();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("sin_fast fallback({input}) lane {i}"));
+        }
+    }
+}
+
+// --- cos_fast: Sollya-verified (Vec8) ---
+
+#[test]
+fn test_vec8_cos_fast_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.1, 0.995004177093505859375),
+        (0.5, 0.877582550048828125),
+        (1.0, 0.540302276611328125),
+        (2.0, -0.4161468446254730224609375),
+        (3.0, -0.98999249935150146484375),
+        (5.0, 0.28366219997406005859375),
+        (7.0, 0.753902256488800048828125),
+        (10.0, -0.8390715122222900390625),
+        (15.0, -0.759687900543212890625),
+        (20.0, 0.408082067966461181640625),
+        (25.0, 0.991202831268310546875),
+        (29.0, -0.748057544231414794921875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 3.5, &format!("cos_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_cos_fast_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.5, 0.877582550048828125),
+        (-1.0, 0.540302276611328125),
+        (-5.0, 0.28366219997406005859375),
+        (-15.0, -0.759687900543212890625),
+        (-29.0, -0.748057544231414794921875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 3.5, &format!("cos_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_cos_fast_sollya_fallback() {
+    let cases: &[(f32, f32)] = &[
+        (30.0, 0.15425145626068115234375),
+        (100.0, 0.86231887340545654296875),
+        (1000.0, 0.562379062175750732421875),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.cos();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("cos_fast fallback({input}) lane {i}"));
+        }
+    }
+}
+
+// --- Mixed-lane fast tests ---
+
+#[test]
+fn test_vec4_sin_fast_sollya_mixed_lanes() {
+    let v = Vec4([0.1, 1.0, 5.0, 10.0]);
+    let r = v.sin();
+    let expected = [
+        9.9833421409130096435546875e-2,
+        0.8414709568023681640625,
+        -0.95892429351806640625,
+        -0.544021129608154296875,
+    ];
+    for i in 0..4 {
+        assert_ulp(r[i], expected[i], 3.5, &format!("sin_fast mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec4_cos_fast_sollya_mixed_lanes() {
+    let v = Vec4([0.1, 1.0, 5.0, 10.0]);
+    let r = v.cos();
+    let expected = [
+        0.995004177093505859375,
+        0.540302276611328125,
+        0.28366219997406005859375,
+        -0.8390715122222900390625,
+    ];
+    for i in 0..4 {
+        assert_ulp(r[i], expected[i], 3.5, &format!("cos_fast mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec8_sin_fast_sollya_mixed_lanes() {
+    let v = Vec8([0.1, 0.5, 1.0, 2.0, 5.0, 7.0, 10.0, 20.0]);
+    let r = v.sin();
+    let expected = [
+        9.9833421409130096435546875e-2,
+        0.47942554950714111328125,
+        0.8414709568023681640625,
+        0.909297406673431396484375,
+        -0.95892429351806640625,
+        0.65698659420013427734375,
+        -0.544021129608154296875,
+        0.912945270538330078125,
+    ];
+    for i in 0..8 {
+        assert_ulp(r[i], expected[i], 3.5, &format!("sin_fast mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec8_cos_fast_sollya_mixed_lanes() {
+    let v = Vec8([0.1, 0.5, 1.0, 2.0, 5.0, 7.0, 10.0, 20.0]);
+    let r = v.cos();
+    let expected = [
+        0.995004177093505859375,
+        0.877582550048828125,
+        0.540302276611328125,
+        -0.4161468446254730224609375,
+        0.28366219997406005859375,
+        0.753902256488800048828125,
+        -0.8390715122222900390625,
+        0.408082067966461181640625,
+    ];
+    for i in 0..8 {
+        assert_ulp(r[i], expected[i], 3.5, &format!("cos_fast mixed lane {i}"));
+    }
+}
+
+} // mod fast_tests

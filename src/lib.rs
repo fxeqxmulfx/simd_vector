@@ -6,12 +6,48 @@ mod vec8;
 pub use vec4::Vec4;
 pub use vec8::Vec8;
 
-// SLEEF constants for single-precision trig range reduction (u10 variants)
+/// Precise transcendental functions (≤ 1.0 ULP). Import with `use simd_vector::precise::*`.
+pub mod precise {
+    pub use crate::vec4::Vec4;
+    pub use crate::vec8::Vec8;
+
+    /// Precise math functions (≤ 1.0 ULP accuracy).
+    pub trait PreciseMath {
+        fn sin(self) -> Self;
+        fn cos(self) -> Self;
+        fn exp(self) -> Self;
+        fn sum(self) -> f32;
+        fn dot(self, other: Self) -> f32;
+    }
+}
+
+/// Fast transcendental functions (≤ 3.5 ULP). Import with `use simd_vector::fast::*`.
+pub mod fast {
+    pub use crate::vec4::Vec4;
+    pub use crate::vec8::Vec8;
+
+    /// Fast math functions (≤ 3.5 ULP transcendentals, f32 reductions).
+    pub trait FastMath {
+        fn sin(self) -> Self;
+        fn cos(self) -> Self;
+        fn sum(self) -> f32;
+        fn dot(self, other: Self) -> f32;
+    }
+}
+
+// SLEEF constants for single-precision trig range reduction (u10 variants, 3-part split)
 const PI_A2F: f32 = 3.1414794921875;
 const PI_B2F: f32 = 0.00011315941810607910156;
 const PI_C2F: f32 = 1.9841872589410058936e-09;
 const TRIGRANGEMAX2F: f32 = 125.0;
 const M_1_PI_F: f32 = std::f32::consts::FRAC_1_PI;
+
+// SLEEF constants for medium-range trig reduction (u35 variants, 4-part split)
+const PI_AF: f32 = 3.140625;
+const PI_BF: f32 = 0.0009670257568359375;
+const PI_CF: f32 = 6.2771141529083251953e-07;
+const PI_DF: f32 = 1.2154201256553420762e-10;
+const TRIGRANGEMAXF: f32 = 39000.0;
 
 // SLEEF constants for exp
 const R_LN2F: f32 = 1.442695040888963407359924681001892137426645954152985934135449406931;
