@@ -12,7 +12,7 @@ SIMD vector types for x86-64 in pure stable Rust.
 - `Sum`, `Index`, `From`/`Into` array, `Clone`, `Copy`, `Debug`, `PartialEq`
 - Precision-selected via module import:
   - **Precise** (`use simd_vector::precise::*`): `sin`, `cos`, `exp`, `sum`, `dot` — ≤ 1.0 ULP (f64 reductions)
-  - **Fast** (`use simd_vector::fast::*`): `sin`, `cos`, `sum`, `dot` — ≤ 3.5 ULP transcendentals, f32 reductions
+  - **Fast** (`use simd_vector::fast::*`): `sin`, `cos`, `exp`, `sum`, `dot` — ≤ 3.5 ULP transcendentals, f32 reductions
 
 ## Precision modules
 
@@ -31,17 +31,16 @@ let d = v.dot(v);          // f64 intermediate, ≤ 0.5 ULP
 ```
 
 ```rust
-// Fast path: sin, cos (≤ 3.5 ULP), sum, dot (f32 native)
+// Fast path: sin, cos (≤ 3.5 ULP), exp (≤ 1.0 ULP), sum, dot (f32 native)
 use simd_vector::fast::*;
 
 let v = Vec4([1.0, 2.0, 3.0, 4.0]);
 let s = v.sin();  // ≤ 3.5 ULP
 let c = v.cos();  // ≤ 3.5 ULP
+let e = v.exp();  // ≤ 1.0 ULP (same impl as precise)
 let total = v.sum();       // f32 horizontal add
 let d = v.dot(v);          // f32 multiply + horizontal add
 ```
-
-`exp` is only available in the precise module — SLEEF has no reduced-precision exp variant.
 
 ## Accuracy
 
@@ -65,6 +64,7 @@ let d = v.dot(v);          // f32 multiply + horizontal add
 | `fast::dot` | ≤ N/2 | f32 multiply + horizontal add (N = lane count) |
 | `fast::sin` | ≤ 3.5 | SLEEF `xsinf` — 3-tier range reduction + scalar polynomial |
 | `fast::cos` | ≤ 3.5 | SLEEF `xcosf` — 3-tier range reduction + scalar polynomial |
+| `fast::exp` | ≤ 1.0 | same as `precise::exp` (SLEEF has no reduced-precision variant) |
 
 ### Implementation details
 

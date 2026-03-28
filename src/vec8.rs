@@ -164,6 +164,9 @@ impl crate::fast::FastMath for Vec8 {
     fn cos(self) -> Self {
         unsafe { Self::store(cosf_u35_avx2(self.load())) }
     }
+    fn exp(self) -> Self {
+        unsafe { Self::store(expf_avx2(self.load())) }
+    }
     fn sum(self) -> f32 {
         unsafe {
             let v = self.load();

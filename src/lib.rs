@@ -30,6 +30,7 @@ pub mod fast {
     pub trait FastMath {
         fn sin(self) -> Self;
         fn cos(self) -> Self;
+        fn exp(self) -> Self;
         fn sum(self) -> f32;
         fn dot(self, other: Self) -> f32;
     }
