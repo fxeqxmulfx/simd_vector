@@ -105,7 +105,7 @@ let e = Vec8::splat(1.0).exp(); // [2.71828, 2.71828, ...] (8 lanes)
 
 ## Tests
 
-405 tests covering all operations, edge cases (NaN, Inf, -0.0, subnormals), sampled ULP sweep verification, Sollya-verified reference values, trigonometric identities, arithmetic properties, and AVX2 lane independence.
+453 tests covering all operations, edge cases (NaN, Inf, -0.0, subnormals), sampled ULP sweep verification, Sollya-verified reference values, trigonometric identities, arithmetic properties, and AVX2 lane independence.
 
 ```
 cargo test

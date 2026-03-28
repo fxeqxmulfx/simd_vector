@@ -5588,4 +5588,444 @@ fn test_vec8_cos_fast_sollya_mixed_lanes() {
     }
 }
 
+// --- exp: Sollya-verified fast (Vec4) ---
+
+#[test]
+fn test_vec4_exp_fast_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.0, 1.0),
+        (0.1, 1.1051709651947021484375),
+        (0.5, 1.648721218109130859375),
+        (1.0, 2.71828174591064453125),
+        (2.0, 7.38905620574951171875),
+        (5.0, 148.4131622314453125),
+        (10.0, 22026.46484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_fast_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.1, 0.904837429523468017578125),
+        (-0.5, 0.606530666351318359375),
+        (-1.0, 0.367879450321197509765625),
+        (-2.0, 0.13533528149127960205078125),
+        (-5.0, 6.7379469983279705047607421875e-3),
+        (-10.0, 4.53999309684149920940399169921875e-5),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec4_exp_fast_sollya_large() {
+    let cases: &[(f32, f32)] = &[
+        (20.0, 485165184.0),
+        (50.0, 5184705457665546911744.0),
+        (80.0, 55406224846767593604562923875729408.0),
+        (88.0, 165163626613613066163770348909654704128.0),
+        (-20.0, 2.0611536921677497957716695964336395263671875e-9),
+        (-50.0, 1.928749893353738456166901302804529347301176755991036770865321e-22),
+        (-80.0, 1.804851328584840598743358502560740630639436445609993635206495e-35),
+        (-88.0, 6.05460148519595171687672580035740694775167801436139670715694e-39),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec4::splat(input);
+        let r = v.exp();
+        for i in 0..4 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp_fast({input}) lane {i}"));
+        }
+    }
+}
+
+// --- exp: Sollya-verified fast (Vec8) ---
+
+#[test]
+fn test_vec8_exp_fast_sollya_basic() {
+    let cases: &[(f32, f32)] = &[
+        (0.0, 1.0),
+        (0.1, 1.1051709651947021484375),
+        (0.5, 1.648721218109130859375),
+        (1.0, 2.71828174591064453125),
+        (2.0, 7.38905620574951171875),
+        (5.0, 148.4131622314453125),
+        (10.0, 22026.46484375),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_fast_sollya_negative() {
+    let cases: &[(f32, f32)] = &[
+        (-0.1, 0.904837429523468017578125),
+        (-0.5, 0.606530666351318359375),
+        (-1.0, 0.367879450321197509765625),
+        (-2.0, 0.13533528149127960205078125),
+        (-5.0, 6.7379469983279705047607421875e-3),
+        (-10.0, 4.53999309684149920940399169921875e-5),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp_fast({input}) lane {i}"));
+        }
+    }
+}
+
+#[test]
+fn test_vec8_exp_fast_sollya_large() {
+    let cases: &[(f32, f32)] = &[
+        (20.0, 485165184.0),
+        (50.0, 5184705457665546911744.0),
+        (80.0, 55406224846767593604562923875729408.0),
+        (88.0, 165163626613613066163770348909654704128.0),
+        (-20.0, 2.0611536921677497957716695964336395263671875e-9),
+        (-50.0, 1.928749893353738456166901302804529347301176755991036770865321e-22),
+        (-80.0, 1.804851328584840598743358502560740630639436445609993635206495e-35),
+        (-88.0, 6.05460148519595171687672580035740694775167801436139670715694e-39),
+    ];
+    for &(input, expected) in cases {
+        let v = Vec8::splat(input);
+        let r = v.exp();
+        for i in 0..8 {
+            assert_ulp(r[i], expected, 1.0, &format!("exp_fast({input}) lane {i}"));
+        }
+    }
+}
+
+// --- exp mixed-lane fast tests ---
+
+#[test]
+fn test_vec4_exp_fast_sollya_mixed_lanes() {
+    let v = Vec4([0.0, 1.0, -1.0, 10.0]);
+    let r = v.exp();
+    let expected = [1.0, 2.71828174591064453125, 0.367879450321197509765625, 22026.46484375];
+    for i in 0..4 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("exp_fast mixed lane {i}"));
+    }
+}
+
+#[test]
+fn test_vec8_exp_fast_sollya_mixed_lanes() {
+    let v = Vec8([0.0, 0.1, 0.5, 1.0, -1.0, 2.0, 5.0, 10.0]);
+    let r = v.exp();
+    let expected = [
+        1.0, 1.1051709651947021484375, 1.648721218109130859375, 2.71828174591064453125,
+        0.367879450321197509765625, 7.38905620574951171875, 148.4131622314453125, 22026.46484375,
+    ];
+    for i in 0..8 {
+        assert_ulp(r[i], expected[i], 1.0, &format!("exp_fast mixed lane {i}"));
+    }
+}
+
+// --- fast edge cases: NaN, Inf, -0 ---
+
+#[test]
+fn test_vec4_fast_sin_nan() {
+    let v = Vec4::splat(f32::NAN);
+    let r = v.sin();
+    for i in 0..4 { assert!(r[i].is_nan(), "sin(NaN) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec4_fast_sin_inf() {
+    let v = Vec4::splat(f32::INFINITY);
+    let r = v.sin();
+    for i in 0..4 { assert!(r[i].is_nan(), "sin(inf) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec4_fast_sin_neg_inf() {
+    let v = Vec4::splat(f32::NEG_INFINITY);
+    let r = v.sin();
+    for i in 0..4 { assert!(r[i].is_nan(), "sin(-inf) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec4_fast_sin_neg_zero() {
+    let v = Vec4::splat(-0.0);
+    let r = v.sin();
+    for i in 0..4 {
+        assert_eq!(r[i].to_bits(), (-0.0f32).to_bits(), "sin(-0) should be -0");
+    }
+}
+
+#[test]
+fn test_vec4_fast_cos_nan() {
+    let v = Vec4::splat(f32::NAN);
+    let r = v.cos();
+    for i in 0..4 { assert!(r[i].is_nan(), "cos(NaN) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec4_fast_cos_inf() {
+    let v = Vec4::splat(f32::INFINITY);
+    let r = v.cos();
+    for i in 0..4 { assert!(r[i].is_nan(), "cos(inf) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec4_fast_exp_nan() {
+    let v = Vec4::splat(f32::NAN);
+    let r = v.exp();
+    for i in 0..4 { assert!(r[i].is_nan(), "exp(NaN) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec4_fast_exp_neg_inf() {
+    let v = Vec4::splat(f32::NEG_INFINITY);
+    let r = v.exp();
+    for i in 0..4 { assert_eq!(r[i], 0.0, "exp(-inf) should be 0"); }
+}
+
+#[test]
+fn test_vec4_fast_exp_pos_inf() {
+    let v = Vec4::splat(f32::INFINITY);
+    let r = v.exp();
+    for i in 0..4 { assert!(r[i].is_infinite() && r[i] > 0.0, "exp(inf) should be inf"); }
+}
+
+#[test]
+fn test_vec8_fast_sin_nan() {
+    let v = Vec8::splat(f32::NAN);
+    let r = v.sin();
+    for i in 0..8 { assert!(r[i].is_nan(), "sin(NaN) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec8_fast_cos_inf() {
+    let v = Vec8::splat(f32::INFINITY);
+    let r = v.cos();
+    for i in 0..8 { assert!(r[i].is_nan(), "cos(inf) should be NaN, got {}", r[i]); }
+}
+
+#[test]
+fn test_vec8_fast_exp_neg_inf() {
+    let v = Vec8::splat(f32::NEG_INFINITY);
+    let r = v.exp();
+    for i in 0..8 { assert_eq!(r[i], 0.0, "exp(-inf) should be 0"); }
+}
+
+#[test]
+fn test_vec8_fast_sin_neg_zero() {
+    let v = Vec8::splat(-0.0);
+    let r = v.sin();
+    for i in 0..8 {
+        assert_eq!(r[i].to_bits(), (-0.0f32).to_bits(), "sin(-0) should be -0");
+    }
+}
+
+// --- fast sum tests ---
+
+#[test]
+fn test_vec4_fast_sum_basic() {
+    let v = Vec4([1.0, 2.0, 3.0, 4.0]);
+    assert_eq!(v.sum(), 10.0);
+}
+
+#[test]
+fn test_vec4_fast_sum_zeros() {
+    let v = Vec4::ZERO;
+    assert_eq!(v.sum(), 0.0);
+}
+
+#[test]
+fn test_vec4_fast_sum_negative() {
+    let v = Vec4([-1.0, -2.0, -3.0, -4.0]);
+    assert_eq!(v.sum(), -10.0);
+}
+
+#[test]
+fn test_vec4_fast_sum_mixed() {
+    let v = Vec4([1.0, -1.0, 2.0, -2.0]);
+    assert_eq!(v.sum(), 0.0);
+}
+
+#[test]
+fn test_vec4_fast_sum_splat() {
+    let v = Vec4::splat(0.25);
+    assert_eq!(v.sum(), 1.0);
+}
+
+#[test]
+fn test_vec8_fast_sum_basic() {
+    let v = Vec8([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    assert_eq!(v.sum(), 36.0);
+}
+
+#[test]
+fn test_vec8_fast_sum_zeros() {
+    let v = Vec8::ZERO;
+    assert_eq!(v.sum(), 0.0);
+}
+
+#[test]
+fn test_vec8_fast_sum_negative() {
+    let v = Vec8([-1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0]);
+    assert_eq!(v.sum(), -36.0);
+}
+
+#[test]
+fn test_vec8_fast_sum_splat() {
+    let v = Vec8::splat(0.125);
+    assert_eq!(v.sum(), 1.0);
+}
+
+#[test]
+fn test_vec4_fast_sum_nan_propagation() {
+    let v = Vec4([1.0, f32::NAN, 3.0, 4.0]);
+    assert!(v.sum().is_nan());
+}
+
+#[test]
+fn test_vec8_fast_sum_nan_propagation() {
+    let v = Vec8([1.0, 2.0, 3.0, f32::NAN, 5.0, 6.0, 7.0, 8.0]);
+    assert!(v.sum().is_nan());
+}
+
+#[test]
+fn test_vec4_fast_sum_inf() {
+    let v = Vec4([1.0, f32::INFINITY, 3.0, 4.0]);
+    assert!(v.sum().is_infinite());
+}
+
+// --- fast dot tests ---
+
+#[test]
+fn test_vec4_fast_dot_basic() {
+    let a = Vec4([1.0, 2.0, 3.0, 4.0]);
+    let b = Vec4([5.0, 6.0, 7.0, 8.0]);
+    assert_eq!(a.dot(b), 70.0);
+}
+
+#[test]
+fn test_vec4_fast_dot_zeros() {
+    let a = Vec4([1.0, 2.0, 3.0, 4.0]);
+    let b = Vec4::ZERO;
+    assert_eq!(a.dot(b), 0.0);
+}
+
+#[test]
+fn test_vec4_fast_dot_self() {
+    let a = Vec4([1.0, 2.0, 3.0, 4.0]);
+    assert_eq!(a.dot(a), 30.0);
+}
+
+#[test]
+fn test_vec4_fast_dot_orthogonal() {
+    let a = Vec4([1.0, 0.0, 0.0, 0.0]);
+    let b = Vec4([0.0, 1.0, 0.0, 0.0]);
+    assert_eq!(a.dot(b), 0.0);
+}
+
+#[test]
+fn test_vec4_fast_dot_negative() {
+    let a = Vec4([1.0, -2.0, 3.0, -4.0]);
+    let b = Vec4([-1.0, 2.0, -3.0, 4.0]);
+    assert_eq!(a.dot(b), -30.0);
+}
+
+#[test]
+fn test_vec8_fast_dot_basic() {
+    let a = Vec8([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    let b = Vec8([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+    assert_eq!(a.dot(b), 36.0);
+}
+
+#[test]
+fn test_vec8_fast_dot_self() {
+    let a = Vec8([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    assert_eq!(a.dot(a), 204.0);
+}
+
+#[test]
+fn test_vec8_fast_dot_zeros() {
+    let a = Vec8([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    assert_eq!(a.dot(Vec8::ZERO), 0.0);
+}
+
+#[test]
+fn test_vec4_fast_dot_nan_propagation() {
+    let a = Vec4([1.0, f32::NAN, 3.0, 4.0]);
+    let b = Vec4([1.0, 1.0, 1.0, 1.0]);
+    assert!(a.dot(b).is_nan());
+}
+
+#[test]
+fn test_vec8_fast_dot_nan_propagation() {
+    let a = Vec8([1.0, 2.0, f32::NAN, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    let b = Vec8::splat(1.0);
+    assert!(a.dot(b).is_nan());
+}
+
+// --- fast vs precise consistency ---
+
+#[test]
+fn test_vec4_fast_sum_vs_precise() {
+    use crate::precise::PreciseMath as P;
+    let v = Vec4([1.5, 2.5, 3.5, 4.5]);
+    let fast_result: f32 = FastMath::sum(v);
+    let precise_result: f32 = P::sum(v);
+    assert_eq!(fast_result, precise_result);
+}
+
+#[test]
+fn test_vec4_fast_dot_vs_precise() {
+    use crate::precise::PreciseMath as P;
+    let a = Vec4([1.0, 2.0, 3.0, 4.0]);
+    let b = Vec4([5.0, 6.0, 7.0, 8.0]);
+    let fast_result: f32 = FastMath::dot(a, b);
+    let precise_result: f32 = P::dot(a, b);
+    assert_eq!(fast_result, precise_result);
+}
+
+#[test]
+fn test_vec8_fast_sum_vs_precise() {
+    use crate::precise::PreciseMath as P;
+    let v = Vec8([1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]);
+    let fast_result: f32 = FastMath::sum(v);
+    let precise_result: f32 = P::sum(v);
+    assert_eq!(fast_result, precise_result);
+}
+
+#[test]
+fn test_vec4_fast_sum_precision_difference() {
+    use crate::precise::PreciseMath as P;
+    let v = Vec4([1e7, 1.0, -1e7, 0.5]);
+    let fast_result: f32 = FastMath::sum(v);
+    let precise_result: f32 = P::sum(v);
+    assert_eq!(precise_result, 1.5);
+    assert!((fast_result - 1.5).abs() <= 1.0, "fast sum too far off: {fast_result}");
+}
+
+#[test]
+fn test_vec8_fast_dot_precision_difference() {
+    use crate::precise::PreciseMath as P;
+    let a = Vec8([1e4, 1e4, 1e4, 1e4, -1e4, -1e4, -1e4, -1e4]);
+    let b = Vec8([1e4, 1e4, 1e4, 1e4, 1e4, 1e4, 1e4, 1e4]);
+    let fast_result: f32 = FastMath::dot(a, b);
+    let precise_result: f32 = P::dot(a, b);
+    assert_eq!(precise_result, 0.0);
+    assert_eq!(fast_result, 0.0);
+}
+
 } // mod fast_tests
